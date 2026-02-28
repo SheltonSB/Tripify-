@@ -1,14 +1,15 @@
-FROM python:3.12-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Build stage
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
+RUN chmod +x mvnw
+RUN ./mvnw clean package -DskipTests
 
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Runtime stage
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
