@@ -1,13 +1,16 @@
 spring:
   datasource:
-    url: jdbc:postgresql://db:5432/travel
-    username: postgres
-    password: postgres
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
   jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
     show-sql: true
 
-  redis:
-    host: redis
-    port: 6379
+  h2:
+    console:
+      enabled: true
