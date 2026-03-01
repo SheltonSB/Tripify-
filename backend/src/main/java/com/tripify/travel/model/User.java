@@ -35,4 +35,7 @@ public class User {
 
     public String getAllergies() { return allergies; }
     public void setAllergies(String allergies) { this.allergies = allergies; }
+
+    public List<Trip> getTrips() { return trips; }
+    public void setTrips(List<Trip> trips) { this.trips = trips; }
 }

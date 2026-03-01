@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/travel
-    username: app
-    password: Roma@5193
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/travel}
+    username: ${SPRING_DATASOURCE_USERNAME:app}
+    password: ${SPRING_DATASOURCE_PASSWORD:app}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -13,10 +13,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  h2:
-    console:
-      enabled: true
-  management:
+management:
   endpoints:
     web:
       exposure:
@@ -24,5 +21,3 @@ spring:
   endpoint:
     health:
       show-details: always
-      db:
-        enabled: false 

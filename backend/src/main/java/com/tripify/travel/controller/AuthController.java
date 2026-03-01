@@ -1,5 +1,8 @@
 package com.tripify.travel.controller;
 
+import com.tripify.travel.dto.AuthRequest;
+import com.tripify.travel.dto.UserResponse;
+import com.tripify.travel.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,15 +15,19 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "*")
 public class AuthController {
 
+    private final UserService userService;
+
+    public AuthController(UserService userService) {
+        this.userService = userService;
+    }
+
     @PostMapping("/signup")
-    public ResponseEntity<String> signup(@RequestBody String request) {
-        // TODO: connect to service layer
-        return ResponseEntity.ok("User registered successfully");
+    public ResponseEntity<UserResponse> signup(@RequestBody AuthRequest request) {
+        return ResponseEntity.ok(UserResponse.fromEntity(userService.signup(request)));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody String request) {
-        // TODO: validate credentials + return JWT
-        return ResponseEntity.ok("User logged in successfully");
+    public ResponseEntity<UserResponse> login(@RequestBody AuthRequest request) {
+        return ResponseEntity.ok(UserResponse.fromEntity(userService.login(request)));
     }
 }

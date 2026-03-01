@@ -1,7 +1,6 @@
 package com.tripify.travel.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDate;
 import java.util.List;
 
 @Entity
@@ -28,8 +27,25 @@ public class Trip {
     // Getters & Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+
     public double getBudget() { return budget; }
     public void setBudget(double budget) { this.budget = budget; }
+
+    public int getDays() { return days; }
+    public void setDays(int days) { this.days = days; }
+
+    public int getPeople() { return people; }
+    public void setPeople(int people) { this.people = people; }
+
+    public boolean isConfirmed() { return confirmed; }
+    public void setConfirmed(boolean confirmed) { this.confirmed = confirmed; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
+
+    public List<Destination> getDestinations() { return destinations; }
+    public void setDestinations(List<Destination> destinations) { this.destinations = destinations; }
 }

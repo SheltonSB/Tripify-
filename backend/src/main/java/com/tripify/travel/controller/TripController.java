@@ -1,5 +1,8 @@
 package com.tripify.travel.controller;
 
+import com.tripify.travel.dto.TripRequest;
+import com.tripify.travel.dto.TripResponse;
+import com.tripify.travel.service.TripService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,34 +17,24 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "*")
 public class TripController {
 
-    // Step 1: User submits constraints
+    private final TripService tripService;
+
+    public TripController(TripService tripService) {
+        this.tripService = tripService;
+    }
+
     @PostMapping("/generate")
-    public ResponseEntity<String> generateTrip(@RequestBody String tripRequest) {
-
-        // TODO:
-        // - Call AI recommendation service
-        // - Validate budget feasibility
-        // - Return trip options
-
-        return ResponseEntity.ok("Trip options generated");
+    public ResponseEntity<TripResponse> generateTrip(@RequestBody TripRequest tripRequest) {
+        return ResponseEntity.ok(TripResponse.fromEntity(tripService.generateTrip(tripRequest)));
     }
 
-    // Step 2: User selects a specific trip
     @PostMapping("/confirm/{tripId}")
-    public ResponseEntity<String> confirmTrip(@PathVariable Long tripId) {
-
-        // TODO:
-        // - Save confirmed trip to DB
-        // - Lock selected destinations
-        // - Return itinerary
-
-        return ResponseEntity.ok("Trip confirmed with ID: " + tripId);
+    public ResponseEntity<TripResponse> confirmTrip(@PathVariable Long tripId) {
+        return ResponseEntity.ok(TripResponse.fromEntity(tripService.confirmTrip(tripId)));
     }
 
-    // Step 3: Get specific trip
     @GetMapping("/{tripId}")
-    public ResponseEntity<String> getTrip(@PathVariable Long tripId) {
-
-        return ResponseEntity.ok("Trip details for ID: " + tripId);
+    public ResponseEntity<TripResponse> getTrip(@PathVariable Long tripId) {
+        return ResponseEntity.ok(TripResponse.fromEntity(tripService.getTrip(tripId)));
     }
 }
