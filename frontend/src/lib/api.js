@@ -1,4 +1,5 @@
 const API_TIMEOUT_MS = 8000
+const AI_TIMEOUT_MS = 60000
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
 
 async function request(path, options = {}) {
@@ -6,8 +7,9 @@ async function request(path, options = {}) {
     throw new Error('VITE_API_BASE_URL is not set')
   }
 
+  const { timeoutMs = API_TIMEOUT_MS } = options
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const { method = 'GET', body } = options
@@ -32,7 +34,7 @@ async function request(path, options = {}) {
     return responseText ? { message: responseText } : {}
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timed out after ${API_TIMEOUT_MS}ms`)
+      throw new Error(`Request timed out after ${timeoutMs}ms`)
     }
     throw error
   } finally {
@@ -73,5 +75,13 @@ export function confirmTrip(tripId, payload = {}) {
 }
 
 export function buildAssistantPlan(payload) {
-  return request('/api/assistant/plan', { method: 'POST', body: payload })
+  return request('/api/assistant/plan', { method: 'POST', body: payload, timeoutMs: AI_TIMEOUT_MS })
+}
+
+export function getAssistantPlansByTrip(tripId) {
+  return request(`/api/assistant/trips/${tripId}`)
+}
+
+export function getAssistantPlansByUser(userId) {
+  return request(`/api/assistant/users/${userId}`)
 }
