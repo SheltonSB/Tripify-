@@ -1,4 +1,6 @@
 import json
+import logging
+import time
 from typing import Any
 
 import httpx
@@ -11,6 +13,9 @@ from app.schemas.assistant_response import AssistantResponse
 
 class LlamaClientError(RuntimeError):
     """Raised when the Ollama integration cannot return a valid plan."""
+
+
+logger = logging.getLogger(__name__)
 
 
 class LlamaClient:
@@ -34,7 +39,16 @@ class LlamaClient:
 
     def generate_plan(self, request: AssistantRequest, prompt_template: str) -> AssistantResponse:
         prompt = self._build_prompt(request, prompt_template)
+        start_time = time.perf_counter()
         try:
+            logger.info(
+                "Dispatching Ollama prompt destination=%s trip_id=%s quotes=%s places=%s weather=%s",
+                request.destination,
+                request.trip_id,
+                len(request.price_quotes),
+                len(request.places),
+                request.weather.summary if request.weather else "none",
+            )
             response = self._http_client.post(
                 "/api/generate",
                 json={
@@ -55,17 +69,42 @@ class LlamaClient:
             if "destination" not in structured:
                 structured["destination"] = request.destination
 
-            return AssistantResponse.model_validate(structured)
+            validated = AssistantResponse.model_validate(structured)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.info(
+                "Ollama response received destination=%s steps=%s durationMs=%s",
+                validated.destination,
+                len(validated.steps),
+                duration_ms,
+            )
+            return validated
         except LlamaClientError:
             raise
         except httpx.HTTPError as exception:
+            logger.exception("Ollama transport failure")
             raise LlamaClientError(
                 f"Failed to reach Ollama at {self._base_url} using model '{self._model_name}'"
             ) from exception
         except ValidationError as exception:
+            logger.exception("Ollama schema validation failure")
             raise LlamaClientError("Ollama returned JSON that does not match the plan schema") from exception
 
     def _build_prompt(self, request: AssistantRequest, prompt_template: str) -> str:
+        pricing_lines = "\n".join(
+            f"- {quote.provider} {quote.category}: {quote.amount:.2f} {quote.currency} ({quote.source_reference})"
+            for quote in request.price_quotes
+        ) or "- No pricing data available."
+        places_lines = "\n".join(
+            f"- {place.name} [{place.category}] vibe={place.vibe} approx={place.estimated_cost:.2f} via {place.provider}"
+            for place in request.places
+        ) or "- No place recommendations available."
+        weather_line = (
+            f"- {request.weather.city}: {request.weather.summary}, "
+            f"{request.weather.temperature_celsius:.1f}C, alert_active={request.weather.alert_active}"
+            if request.weather
+            else "- No weather data available."
+        )
+
         return f"""{prompt_template}
 
 You are Tripify's travel planning assistant.
@@ -86,10 +125,22 @@ Requirements:
 - Keep the response budget-aware.
 - Use {request.days} day(s) and {request.people} traveler(s).
 - Budget ceiling: {request.budget:.2f}.
+- Origin: {request.origin}.
 - Destination: {request.destination}.
+- Preferred vibe: {request.vibe}.
 - If the user's prompt adds constraints, follow them.
 - Provide between 2 and 5 steps.
 - dayNumber values must be positive integers.
+
+Context from upstream services:
+Pricing:
+{pricing_lines}
+
+Weather:
+{weather_line}
+
+Places:
+{places_lines}
 
 User prompt:
 {request.prompt or "No extra prompt provided."}

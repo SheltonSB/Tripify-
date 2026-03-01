@@ -1,6 +1,35 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class PricingQuote(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: str
+    category: str
+    currency: str
+    amount: float
+    source_reference: str = Field(alias="sourceReference")
+
+
+class WeatherContext(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    city: str
+    summary: str
+    temperature_celsius: float = Field(alias="temperatureCelsius")
+    alert_active: bool = Field(alias="alertActive")
+
+
+class PlaceContext(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str
+    category: str
+    vibe: str
+    estimated_cost: float = Field(alias="estimatedCost")
+    provider: str
+
+
 class AssistantRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -11,3 +40,8 @@ class AssistantRequest(BaseModel):
     days: int
     people: int
     prompt: str = ""
+    origin: str = "Current location"
+    vibe: str = "balanced"
+    price_quotes: list[PricingQuote] = Field(default_factory=list, alias="priceQuotes")
+    weather: WeatherContext | None = None
+    places: list[PlaceContext] = Field(default_factory=list)

@@ -16,7 +16,13 @@ import com.tripify.travel.model.User;
 import com.tripify.travel.repository.AssistantPlanRepository;
 import com.tripify.travel.repository.TripRepository;
 import com.tripify.travel.repository.UserRepository;
+import com.tripify.travel.service.port.PlacesServicePort;
+import com.tripify.travel.service.port.PricingServicePort;
+import com.tripify.travel.service.port.WeatherServicePort;
 import com.tripify.travel.service.port.AssistantServicePort;
+import com.tripify.travel.dto.places.PlaceCandidate;
+import com.tripify.travel.dto.pricing.PriceQuote;
+import com.tripify.travel.dto.weather.WeatherSnapshot;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -34,11 +40,17 @@ class AssistantServiceTest {
         UserRepository userRepository = mock(UserRepository.class);
         TripRepository tripRepository = mock(TripRepository.class);
         AssistantPlanRepository assistantPlanRepository = mock(AssistantPlanRepository.class);
+        PricingServicePort pricingServicePort = mock(PricingServicePort.class);
+        WeatherServicePort weatherServicePort = mock(WeatherServicePort.class);
+        PlacesServicePort placesServicePort = mock(PlacesServicePort.class);
         AssistantService assistantService = new AssistantService(
             assistantServicePort,
             userRepository,
             tripRepository,
-            assistantPlanRepository);
+            assistantPlanRepository,
+            pricingServicePort,
+            weatherServicePort,
+            placesServicePort);
 
         User user = new User();
         user.setId(1L);
@@ -53,7 +65,12 @@ class AssistantServiceTest {
             1200,
             3,
             2,
-            "Plan a food-focused weekend");
+            "Plan a food-focused weekend",
+            null,
+            null,
+            null,
+            null,
+            null);
         AssistantPlanResponse response = new AssistantPlanResponse(
             "Chicago",
             "Foodie weekend",
@@ -62,7 +79,13 @@ class AssistantServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(tripRepository.findFirstByUserIdAndLocationIgnoreCaseOrderByIdDesc(1L, "Chicago"))
             .thenReturn(Optional.of(trip));
-        when(assistantServicePort.buildPlan(request)).thenReturn(response);
+        when(pricingServicePort.getTripPricing("Current location", "Chicago", 2))
+            .thenReturn(List.of(new PriceQuote("amadeus", "flight", "USD", 299, "test")));
+        when(weatherServicePort.getCurrentWeather("Chicago"))
+            .thenReturn(new WeatherSnapshot("Chicago", "Clear", 21, false));
+        when(placesServicePort.findActivities("Chicago", "foodie"))
+            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp")));
+        when(assistantServicePort.buildPlan(any(AssistantPlanRequest.class))).thenReturn(response);
         when(assistantPlanRepository.save(any(AssistantPlan.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -87,11 +110,17 @@ class AssistantServiceTest {
         UserRepository userRepository = mock(UserRepository.class);
         TripRepository tripRepository = mock(TripRepository.class);
         AssistantPlanRepository assistantPlanRepository = mock(AssistantPlanRepository.class);
+        PricingServicePort pricingServicePort = mock(PricingServicePort.class);
+        WeatherServicePort weatherServicePort = mock(WeatherServicePort.class);
+        PlacesServicePort placesServicePort = mock(PlacesServicePort.class);
         AssistantService assistantService = new AssistantService(
             assistantServicePort,
             userRepository,
             tripRepository,
-            assistantPlanRepository);
+            assistantPlanRepository,
+            pricingServicePort,
+            weatherServicePort,
+            placesServicePort);
 
         User user = new User();
         user.setId(1L);
@@ -103,7 +132,12 @@ class AssistantServiceTest {
             1200,
             3,
             2,
-            "Plan a food-focused weekend");
+            "Plan a food-focused weekend",
+            null,
+            null,
+            null,
+            null,
+            null);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(tripRepository.findFirstByUserIdAndLocationIgnoreCaseOrderByIdDesc(1L, "Chicago"))
