@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   buildAssistantPlan,
@@ -13,6 +13,16 @@ import {
   signup,
   updatePreferences,
 } from './lib/api'
+
+const AUTH_STORAGE_KEY = 'tripify.currentUser'
+const AuthContext = createContext({
+  currentUser: null,
+  setCurrentUser: () => {},
+})
+
+function useAuth() {
+  return useContext(AuthContext)
+}
 
 function useApiAction(action) {
   const [status, setStatus] = useState('idle')
@@ -41,11 +51,18 @@ function useApiAction(action) {
 
 function AppShell({ title, subtitle, children }) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { currentUser, setCurrentUser } = useAuth()
   const navItems = [
     { to: '/trips/generate', label: 'Trips' },
     { to: '/assistant', label: 'Planner' },
     { to: '/health', label: 'Status' },
   ]
+
+  const handleLogout = () => {
+    setCurrentUser(null)
+    navigate('/login')
+  }
 
   return (
     <div className="app-root">
@@ -89,14 +106,23 @@ function AppShell({ title, subtitle, children }) {
               })}
             </nav>
 
-            <div className="header-actions">
-              <Link className="ghost-btn" to="/signup">
-                Create account
-              </Link>
-              <Link className="solid-btn" to="/login">
-                Login
-              </Link>
-            </div>
+            {currentUser ? (
+              <div className="header-actions">
+                <span className="user-chip">{currentUser.email}</span>
+                <button type="button" className="ghost-btn" onClick={handleLogout}>
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div className="header-actions">
+                <Link className="ghost-btn" to="/signup">
+                  Create account
+                </Link>
+                <Link className="solid-btn" to="/login">
+                  Login
+                </Link>
+              </div>
+            )}
           </div>
         </header>
 
@@ -428,6 +454,23 @@ function AnimatedBudgetList({ options, onSelect, activeOption }) {
   )
 }
 
+function AssistantStepList({ steps }) {
+  return (
+    <div className="animated-list assistant-step-list">
+      {steps.map((step, index) => (
+        <article className="animated-list-item assistant-step-item" key={`${step.dayNumber}-${step.title}-${index}`}>
+          <div>
+            <strong>
+              Day {step.dayNumber}: {step.title}
+            </strong>
+            <p>{step.description}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
 function JourneyOptionsPage() {
   const { journeySlug } = useParams()
   const trip = useMemo(() => presetTrips.find((item) => item.slug === journeySlug), [journeySlug])
@@ -505,6 +548,7 @@ function JourneyOptionsPage() {
 function AuthPage({ mode }) {
   const isSignup = mode === 'signup'
   const navigate = useNavigate()
+  const { setCurrentUser } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const authAction = useApiAction((payload) => (isSignup ? signup(payload) : login(payload)))
@@ -515,11 +559,12 @@ function AuthPage({ mode }) {
     if (!response?.id) {
       return
     }
+    setCurrentUser(response)
     if (isSignup) {
       navigate(`/onboarding/${response.id}`)
       return
     }
-    navigate('/')
+    navigate('/assistant')
   }
 
   if (!isSignup) {
@@ -599,6 +644,7 @@ function PreferenceTileGroup({ title, options, value, onChange, columns = 3 }) {
 function OnboardingPage() {
   const { userId } = useParams()
   const navigate = useNavigate()
+  const { setCurrentUser } = useAuth()
   const [step, setStep] = useState(1)
   const [dietaryPreference, setDietaryPreference] = useState('Vegan')
   const [personalityType, setPersonalityType] = useState('Ambivert')
@@ -646,6 +692,7 @@ function OnboardingPage() {
       smokes,
     })
     if (response?.id) {
+      setCurrentUser(response)
       navigate('/assistant')
     }
   }
@@ -871,33 +918,139 @@ function TripDetailPage() {
 }
 
 function AssistantPage() {
-  const [userId, setUserId] = useState('1')
+  const { currentUser } = useAuth()
+  const [userId, setUserId] = useState(currentUser?.id ? String(currentUser.id) : '1')
   const [tripId, setTripId] = useState('')
   const [destination, setDestination] = useState('Chicago')
   const [budget, setBudget] = useState('1500')
   const [days, setDays] = useState('3')
   const [people, setPeople] = useState('2')
+  const [origin, setOrigin] = useState('Current location')
+  const [vibe, setVibe] = useState('balanced')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [dietaryPreference, setDietaryPreference] = useState('Not specified')
+  const [personalityType, setPersonalityType] = useState('Not specified')
+  const [tripCategory, setTripCategory] = useState('Not specified')
+  const [lactoseIntolerant, setLactoseIntolerant] = useState('')
+  const [drinksAlcohol, setDrinksAlcohol] = useState('')
+  const [smokes, setSmokes] = useState('')
+  const [locationError, setLocationError] = useState('')
   const [prompt, setPrompt] = useState('Design a value-focused plan with food and local activities.')
   const assistantAction = useApiAction((payload) => buildAssistantPlan(payload))
   const [historyStatus, setHistoryStatus] = useState('idle')
   const [historyData, setHistoryData] = useState(null)
   const [historyError, setHistoryError] = useState('')
+  const profileAction = useApiAction((id) => getUser(id))
+  const latestPlan = assistantAction.status === 'success' ? assistantAction.data : null
 
   const numericTripId = tripId.trim() ? Number(tripId) : null
+  const numericUserId = Number(userId)
+
+  const inferVibeFromProfile = (profile) => {
+    const trip = (profile?.tripCategory || '').toLowerCase()
+    if (trip.includes('romantic')) return 'romantic'
+    if (trip.includes('family')) return 'family'
+    if (trip.includes('friends')) return 'social'
+
+    const personality = (profile?.personalityType || '').toLowerCase()
+    if (personality.includes('extrovert')) return 'nightlife'
+    if (personality.includes('introvert')) return 'relaxed'
+
+    const food = `${profile?.dietaryPreference || ''} ${profile?.foodPreferences || ''}`.toLowerCase()
+    if (food.includes('vegan') || food.includes('food')) return 'foodie'
+    return 'balanced'
+  }
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      setUserId(String(currentUser.id))
+    }
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
+      return
+    }
+    profileAction.run(numericUserId)
+  }, [numericUserId])
+
+  useEffect(() => {
+    const profile = profileAction.data
+    if (!profile) {
+      return
+    }
+    setDietaryPreference(profile.dietaryPreference || profile.foodPreferences || 'Not specified')
+    setPersonalityType(profile.personalityType || 'Not specified')
+    setTripCategory(profile.tripCategory || 'Not specified')
+    setLactoseIntolerant(profile.lactoseIntolerant == null ? '' : profile.lactoseIntolerant ? 'yes' : 'no')
+    setDrinksAlcohol(profile.drinksAlcohol == null ? '' : profile.drinksAlcohol ? 'yes' : 'no')
+    setSmokes(profile.smokes == null ? '' : profile.smokes ? 'yes' : 'no')
+    setVibe(inferVibeFromProfile(profile))
+  }, [profileAction.data])
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported in this browser.')
+      return
+    }
+    setLocationError('')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(position.coords.latitude.toFixed(6))
+        setLongitude(position.coords.longitude.toFixed(6))
+      },
+      (error) => {
+        setLocationError(error.message || 'Could not read current location.')
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
+
+  const buildPromptWithIntent = () => {
+    const yesNo = (value) => (value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not specified')
+    const lines = [
+      prompt,
+      '',
+      'Intent preferences:',
+      `- Dietary preference: ${dietaryPreference || 'Not specified'}`,
+      `- Personality: ${personalityType || 'Not specified'}`,
+      `- Trip category: ${tripCategory || 'Not specified'}`,
+      `- Lactose intolerant: ${yesNo(lactoseIntolerant)}`,
+      `- Drinks alcohol: ${yesNo(drinksAlcohol)}`,
+      `- Smokes: ${yesNo(smokes)}`,
+      `- Vibe: ${vibe || 'balanced'}`,
+    ]
+    return lines.join('\n')
+  }
 
   const submit = async (event) => {
     event.preventDefault()
     const payload = {
-      userId: Number(userId),
+      userId: numericUserId,
       destination,
       budget: Number(budget),
       days: Number(days),
       people: Number(people),
-      prompt,
+      prompt: buildPromptWithIntent(),
+      vibe,
+      origin,
     }
 
     if (numericTripId) {
       payload.tripId = numericTripId
+    }
+    if (latitude.trim()) {
+      const parsedLatitude = Number(latitude)
+      if (Number.isFinite(parsedLatitude)) {
+        payload.latitude = parsedLatitude
+      }
+    }
+    if (longitude.trim()) {
+      const parsedLongitude = Number(longitude)
+      if (Number.isFinite(parsedLongitude)) {
+        payload.longitude = parsedLongitude
+      }
     }
 
     await assistantAction.run(payload)
@@ -945,7 +1098,7 @@ function AssistantPage() {
       title="AI itinerary assistant"
       subtitle="POST /api/assistant/plan plus GET /api/assistant/trips/{tripId} and /api/assistant/users/{userId}"
     >
-      <section className="two-col">
+      <section className="form-grid">
         <form className="form-card" onSubmit={submit}>
           <div className="form-grid form-grid-2">
             <InputField
@@ -954,6 +1107,7 @@ function AssistantPage() {
               min="1"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
+              readOnly={Boolean(currentUser?.id)}
               required
             />
             <InputField
@@ -969,6 +1123,17 @@ function AssistantPage() {
               onChange={(e) => setDestination(e.target.value)}
               required
             />
+            <FormField label="Vibe">
+              <select value={vibe} onChange={(e) => setVibe(e.target.value)}>
+                <option value="balanced">Balanced</option>
+                <option value="foodie">Foodie</option>
+                <option value="nightlife">Nightlife</option>
+                <option value="relaxed">Relaxed</option>
+                <option value="romantic">Romantic</option>
+                <option value="family">Family</option>
+                <option value="social">Social</option>
+              </select>
+            </FormField>
             <InputField
               label="Budget"
               type="number"
@@ -977,7 +1142,14 @@ function AssistantPage() {
               onChange={(e) => setBudget(e.target.value)}
               required
             />
-            <InputField label="Nights" type="number" min="1" value={days} onChange={(e) => setDays(e.target.value)} required />
+            <InputField
+              label="Nights"
+              type="number"
+              min="1"
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              required
+            />
             <InputField
               label="Travelers"
               type="number"
@@ -986,11 +1158,74 @@ function AssistantPage() {
               onChange={(e) => setPeople(e.target.value)}
               required
             />
+            <InputField
+              label="Origin"
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+              placeholder="Current location or city"
+            />
+            <div className="form-grid assistant-location-field">
+              <button type="button" className="ghost-btn" onClick={useCurrentLocation}>
+                Use my current location
+              </button>
+              {locationError ? <p className="login-error">{locationError}</p> : null}
+            </div>
+            <InputField label="Latitude (optional)" value={latitude} onChange={(e) => setLatitude(e.target.value)} />
+            <InputField
+              label="Longitude (optional)"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
+            <FormField label="Dietary preference">
+              <select value={dietaryPreference} onChange={(e) => setDietaryPreference(e.target.value)}>
+                <option value="Not specified">Not specified</option>
+                <option value="Vegan">Vegan</option>
+                <option value="Lactose Intolerant">Lactose Intolerant</option>
+                <option value="MeatLover">MeatLover</option>
+              </select>
+            </FormField>
+            <FormField label="Personality">
+              <select value={personalityType} onChange={(e) => setPersonalityType(e.target.value)}>
+                <option value="Not specified">Not specified</option>
+                <option value="Extrovert">Extrovert</option>
+                <option value="Ambivert">Ambivert</option>
+                <option value="Introvert">Introvert</option>
+              </select>
+            </FormField>
+            <FormField label="Trip category">
+              <select value={tripCategory} onChange={(e) => setTripCategory(e.target.value)}>
+                <option value="Not specified">Not specified</option>
+                <option value="Romantic">Romantic</option>
+                <option value="Family">Family</option>
+                <option value="Friends">Friends</option>
+              </select>
+            </FormField>
+            <FormField label="Lactose intolerant">
+              <select value={lactoseIntolerant} onChange={(e) => setLactoseIntolerant(e.target.value)}>
+                <option value="">Not specified</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </FormField>
+            <FormField label="Drinks alcohol">
+              <select value={drinksAlcohol} onChange={(e) => setDrinksAlcohol(e.target.value)}>
+                <option value="">Not specified</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </FormField>
+            <FormField label="Smokes">
+              <select value={smokes} onChange={(e) => setSmokes(e.target.value)}>
+                <option value="">Not specified</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </FormField>
           </div>
           <p className="support-text">
-            The destination you enter here drives the AI recommendation. Use a trip ID only to save the plan against an
-            existing trip.
+            We preload onboarding preferences from your profile and let you override them per request.
           </p>
+          {currentUser?.id ? <p className="support-text">Using logged-in account: {currentUser.email}</p> : null}
           <label>
             Prompt
             <textarea rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} required />
@@ -998,21 +1233,47 @@ function AssistantPage() {
           <SubmitButton status={assistantAction.status} loadingText="Building..." idleText="Build plan" />
         </form>
 
-        <div className="form-grid">
-          <ApiResult status={assistantAction.status} data={assistantAction.data} error={assistantAction.error} />
-          <section className="form-card">
-            <p className="support-text">Load the assistant plans already saved for this trip or user.</p>
-            <div className="actions-row">
-              <button type="button" onClick={loadSavedByTrip} disabled={historyStatus === 'loading'}>
-                {historyStatus === 'loading' ? 'Loading...' : 'Load saved by trip'}
-              </button>
-              <button type="button" onClick={loadSavedByUser} disabled={historyStatus === 'loading'}>
-                {historyStatus === 'loading' ? 'Loading...' : 'Load saved by user'}
-              </button>
+        {latestPlan?.steps?.length ? (
+          <section className="journey-layout assistant-journey-layout">
+            <div className="journey-left">
+              <FadeContent>
+                <p className="landing-kicker">Plan Brief</p>
+                <h2>Welcome, Traveler.</h2>
+                <p>{latestPlan.summary}</p>
+                {latestPlan.steps[0]?.description ? (
+                  <p>
+                    Featured stop: <strong>{latestPlan.steps[0].description}</strong>
+                  </p>
+                ) : null}
+              </FadeContent>
             </div>
-            <ApiResult status={historyStatus} data={historyData} error={historyError} />
+
+            <div
+              className="journey-right assistant-journey-right"
+              style={{
+                '--journey-image':
+                  "url('https://images.unsplash.com/photo-1477414348463-c0eb7f1359b6?auto=format&fit=crop&w=1400&q=80')",
+              }}
+            >
+              <AssistantStepList steps={latestPlan.steps} />
+            </div>
           </section>
-        </div>
+        ) : (
+          <ApiResult status={assistantAction.status} data={assistantAction.data} error={assistantAction.error} />
+        )}
+
+        <section className="form-card">
+          <p className="support-text">Load the assistant plans already saved for this trip or user.</p>
+          <div className="actions-row">
+            <button type="button" onClick={loadSavedByTrip} disabled={historyStatus === 'loading'}>
+              {historyStatus === 'loading' ? 'Loading...' : 'Load saved by trip'}
+            </button>
+            <button type="button" onClick={loadSavedByUser} disabled={historyStatus === 'loading'}>
+              {historyStatus === 'loading' ? 'Loading...' : 'Load saved by user'}
+            </button>
+          </div>
+          <ApiResult status={historyStatus} data={historyData} error={historyError} />
+        </section>
       </section>
     </AppShell>
   )
@@ -1034,21 +1295,40 @@ function HealthPage() {
 }
 
 function App() {
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+      return raw ? JSON.parse(raw) : null
+    } catch (_error) {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser))
+      return
+    }
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+  }, [currentUser])
+
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/signup" element={<AuthPage mode="signup" />} />
-      <Route path="/login" element={<AuthPage mode="login" />} />
-      <Route path="/onboarding/:userId" element={<OnboardingPage />} />
-      <Route path="/users/:userId" element={<UserProfilePage />} />
-      <Route path="/preferences/:userId" element={<PreferencesPage />} />
-      <Route path="/trips/generate" element={<TripGeneratePage />} />
-      <Route path="/trips/:tripId" element={<TripDetailPage />} />
-      <Route path="/assistant" element={<AssistantPage />} />
-      <Route path="/journeys/:journeySlug" element={<JourneyOptionsPage />} />
-      <Route path="/health" element={<HealthPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <AuthContext.Provider value={{ currentUser, setCurrentUser }}>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/signup" element={<AuthPage mode="signup" />} />
+        <Route path="/login" element={<AuthPage mode="login" />} />
+        <Route path="/onboarding/:userId" element={<OnboardingPage />} />
+        <Route path="/users/:userId" element={<UserProfilePage />} />
+        <Route path="/preferences/:userId" element={<PreferencesPage />} />
+        <Route path="/trips/generate" element={<TripGeneratePage />} />
+        <Route path="/trips/:tripId" element={<TripDetailPage />} />
+        <Route path="/assistant" element={<AssistantPage />} />
+        <Route path="/journeys/:journeySlug" element={<JourneyOptionsPage />} />
+        <Route path="/health" element={<HealthPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthContext.Provider>
   )
 }
 

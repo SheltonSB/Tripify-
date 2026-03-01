@@ -65,7 +65,7 @@ public class AssistantService {
         User user = userRepository.findById(request.userId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         Trip trip = resolveTrip(request, user);
-        AssistantPlanRequest enrichedRequest = enrichRequest(request, trip);
+        AssistantPlanRequest enrichedRequest = enrichRequest(request, user, trip);
 
         logger.info(
             "Building AI plan userId={} tripId={} destination={} quotes={} places={} weather={}",
@@ -156,12 +156,13 @@ public class AssistantService {
         return plan;
     }
 
-    private AssistantPlanRequest enrichRequest(AssistantPlanRequest request, Trip trip) {
+    private AssistantPlanRequest enrichRequest(AssistantPlanRequest request, User user, Trip trip) {
         String destination = hasText(request.destination())
             ? request.destination().trim()
             : trip.getLocation();
-        String origin = hasText(request.origin()) ? request.origin() : "Current location";
-        String vibe = hasText(request.vibe()) ? request.vibe() : inferVibe(request.prompt());
+        String origin = hasText(request.origin()) ? request.origin().trim() : "Current location";
+        String vibe = resolveVibe(request, user);
+        String prompt = buildPromptWithIntent(request.prompt(), user, vibe);
         List<PriceQuote> priceQuotes = request.priceQuotes() == null || request.priceQuotes().isEmpty()
             ? pricingServicePort.getTripPricing(origin, destination, request.people())
             : request.priceQuotes();
@@ -187,7 +188,7 @@ public class AssistantService {
             request.budget(),
             request.days(),
             request.people(),
-            request.prompt(),
+            prompt,
             origin,
             request.latitude(),
             request.longitude(),
@@ -195,6 +196,78 @@ public class AssistantService {
             priceQuotes,
             weather,
             rankedPlaces);
+    }
+
+    private String resolveVibe(AssistantPlanRequest request, User user) {
+        if (hasText(request.vibe())) {
+            return request.vibe().trim();
+        }
+        String profileVibe = inferVibeFromProfile(user);
+        if (hasText(profileVibe)) {
+            return profileVibe;
+        }
+        return inferVibe(request.prompt());
+    }
+
+    private String inferVibeFromProfile(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        String tripCategory = lower(user.getTripCategory());
+        if (tripCategory.contains("romantic")) {
+            return "romantic";
+        }
+        if (tripCategory.contains("family")) {
+            return "family";
+        }
+        if (tripCategory.contains("friends")) {
+            return "social";
+        }
+
+        String personality = lower(user.getPersonalityType());
+        if (personality.contains("extrovert")) {
+            return "nightlife";
+        }
+        if (personality.contains("introvert")) {
+            return "relaxed";
+        }
+
+        String foodPreference = lower(user.getDietaryPreference()) + " " + lower(user.getFoodPreferences());
+        if (foodPreference.contains("vegan") || foodPreference.contains("food")) {
+            return "foodie";
+        }
+
+        return null;
+    }
+
+    private String buildPromptWithIntent(String prompt, User user, String vibe) {
+        String basePrompt = hasText(prompt) ? prompt.trim() : "Plan a practical trip with strong value.";
+        if (user == null) {
+            return basePrompt;
+        }
+
+        String dietary = firstText(user.getDietaryPreference(), user.getFoodPreferences(), "Not specified");
+        String tripCategory = firstText(user.getTripCategory(), "Not specified");
+        String personality = firstText(user.getPersonalityType(), "Not specified");
+        String allergies = firstText(user.getAllergies(), "None");
+        String lactose = yesNo(user.getLactoseIntolerant());
+        String drinking = yesNo(user.getDrinksAlcohol());
+        String smoking = yesNo(user.getSmokes());
+        String vibeText = firstText(vibe, "balanced");
+
+        StringBuilder enriched = new StringBuilder(basePrompt);
+        enriched.append("\n\nUser intent context:");
+        enriched.append("\n- Vibe: ").append(vibeText);
+        enriched.append("\n- Trip category: ").append(tripCategory);
+        enriched.append("\n- Personality: ").append(personality);
+        enriched.append("\n- Dietary preference: ").append(dietary);
+        enriched.append("\n- Lactose intolerant: ").append(lactose);
+        enriched.append("\n- Allergies: ").append(allergies);
+        enriched.append("\n- Drinks alcohol: ").append(drinking);
+        enriched.append("\n- Smokes: ").append(smoking);
+        enriched.append("\nUse this context when choosing and explaining recommendations.");
+        return enriched.toString();
     }
 
     private String inferVibe(String prompt) {
@@ -216,5 +289,28 @@ public class AssistantService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String lower(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private String yesNo(Boolean value) {
+        if (value == null) {
+            return "Not specified";
+        }
+        return value ? "Yes" : "No";
+    }
+
+    private String firstText(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 }

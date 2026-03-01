@@ -163,6 +163,18 @@ a {
   align-items: center;
 }
 
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f3fbf7;
+  color: #0d503f;
+  padding: 0.45rem 0.72rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .ghost-btn,
 .solid-btn,
 button {
@@ -547,6 +559,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   font: inherit;
@@ -560,11 +573,16 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   outline: none;
   border-color: #5db79f;
   box-shadow: 0 0 0 3px rgba(0, 127, 95, 0.14);
   background: #ffffff;
+}
+
+.assistant-location-field {
+  align-content: end;
 }
 
 .search-btn {
@@ -1003,6 +1021,18 @@ textarea:focus {
   font-size: 48pt;
   line-height: 1.1;
   margin: 0.4rem 0 0.9rem;
+}
+
+.assistant-journey-layout {
+  min-height: calc(100vh - 210px);
+}
+
+.assistant-journey-right .animated-list {
+  margin-bottom: 0;
+}
+
+.assistant-step-item {
+  align-items: flex-start;
 }
 
 .fade-content {
