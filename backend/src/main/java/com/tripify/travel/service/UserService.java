@@ -57,8 +57,14 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Preferences are required");
         }
         User user = getUser(userId);
-        user.setFoodPreferences(preferencesRequest.foodPreferences());
-        user.setAllergies(preferencesRequest.allergies());
+        user.setFoodPreferences(normalize(preferencesRequest.foodPreferences()));
+        user.setAllergies(normalize(preferencesRequest.allergies()));
+        user.setDietaryPreference(normalize(preferencesRequest.dietaryPreference()));
+        user.setPersonalityType(normalize(preferencesRequest.personalityType()));
+        user.setTripCategory(normalize(preferencesRequest.tripCategory()));
+        user.setLactoseIntolerant(preferencesRequest.lactoseIntolerant());
+        user.setDrinksAlcohol(preferencesRequest.drinksAlcohol());
+        user.setSmokes(preferencesRequest.smokes());
         return userRepository.save(user);
     }
 
@@ -71,5 +77,13 @@ public class UserService {
             || request.password() == null || request.password().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and password are required");
         }
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

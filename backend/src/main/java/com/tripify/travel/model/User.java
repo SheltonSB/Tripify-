@@ -16,6 +16,12 @@ public class User {
 
     private String foodPreferences;
     private String allergies;
+    private String dietaryPreference;
+    private String personalityType;
+    private String tripCategory;
+    private Boolean lactoseIntolerant;
+    private Boolean drinksAlcohol;
+    private Boolean smokes;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<Trip> trips;
@@ -35,6 +41,24 @@ public class User {
 
     public String getAllergies() { return allergies; }
     public void setAllergies(String allergies) { this.allergies = allergies; }
+
+    public String getDietaryPreference() { return dietaryPreference; }
+    public void setDietaryPreference(String dietaryPreference) { this.dietaryPreference = dietaryPreference; }
+
+    public String getPersonalityType() { return personalityType; }
+    public void setPersonalityType(String personalityType) { this.personalityType = personalityType; }
+
+    public String getTripCategory() { return tripCategory; }
+    public void setTripCategory(String tripCategory) { this.tripCategory = tripCategory; }
+
+    public Boolean getLactoseIntolerant() { return lactoseIntolerant; }
+    public void setLactoseIntolerant(Boolean lactoseIntolerant) { this.lactoseIntolerant = lactoseIntolerant; }
+
+    public Boolean getDrinksAlcohol() { return drinksAlcohol; }
+    public void setDrinksAlcohol(Boolean drinksAlcohol) { this.drinksAlcohol = drinksAlcohol; }
+
+    public Boolean getSmokes() { return smokes; }
+    public void setSmokes(Boolean smokes) { this.smokes = smokes; }
 
     public List<Trip> getTrips() { return trips; }
     public void setTrips(List<Trip> trips) { this.trips = trips; }

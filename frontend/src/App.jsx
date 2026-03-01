@@ -166,7 +166,7 @@ function DestinationCard({ city, note }) {
   )
 }
 
-function MasonryBackground() {
+function MasonryBackground({ columnsCount = 4, className = '' }) {
   const columns = [
     [
       'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
@@ -195,8 +195,8 @@ function MasonryBackground() {
   ]
 
   return (
-    <div className="masonry-bg" aria-hidden="true">
-      {columns.map((column, index) => (
+    <div className={`masonry-bg ${className}`.trim()} aria-hidden="true">
+      {columns.slice(0, columnsCount).map((column, index) => (
         <div className="masonry-col" key={`col-${index}`}>
           {column.map((image, tileIndex) => (
             <img
@@ -504,22 +504,32 @@ function JourneyOptionsPage() {
 }
 function AuthPage({ mode }) {
   const isSignup = mode === 'signup'
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const authAction = useApiAction((payload) => (isSignup ? signup(payload) : login(payload)))
 
   const submit = async (event) => {
     event.preventDefault()
-    await authAction.run({ email, password })
+    const response = await authAction.run({ email, password })
+    if (!response?.id) {
+      return
+    }
+    if (isSignup) {
+      navigate(`/onboarding/${response.id}`)
+      return
+    }
+    navigate('/')
   }
 
-  return (
-    <AppShell
-      title={isSignup ? 'Create your account' : 'Sign in'}
-      subtitle={isSignup ? 'POST /api/auth/signup' : 'POST /api/auth/login'}
-    >
-      <section className="two-col">
-        <form className="form-card" onSubmit={submit}>
+  if (!isSignup) {
+    return (
+      <section className="login-page-bleed">
+        <MasonryBackground columnsCount={3} className="login-masonry" />
+        <div className="login-overlay" />
+        <form className="form-card login-card" onSubmit={submit}>
+          <h2>Welcome back, traveler.</h2>
+          <p>Your next escape is closer than you think.</p>
           <InputField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <InputField
             label="Password"
@@ -528,20 +538,186 @@ function AuthPage({ mode }) {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <SubmitButton
-            status={authAction.status}
-            loadingText="Submitting..."
-            idleText={isSignup ? 'Create account' : 'Sign in'}
-          />
-          <p className="support-text">
-            {isSignup ? 'Already have an account?' : 'Need an account?'}{' '}
-            <Link to={isSignup ? '/login' : '/signup'}>{isSignup ? 'Sign in' : 'Create one'}</Link>
-          </p>
+          <SubmitButton status={authAction.status} loadingText="Signing in..." idleText="Login" />
+          <Link className="ghost-btn create-account-cta" to="/signup">
+            Create account
+          </Link>
+          {authAction.status === 'error' && <p className="login-error">{authAction.error}</p>}
         </form>
-
-        <ApiResult status={authAction.status} data={authAction.data} error={authAction.error} />
       </section>
-    </AppShell>
+    )
+  }
+
+  return (
+    <section className="login-page-bleed">
+      <MasonryBackground columnsCount={3} className="login-masonry" />
+      <div className="login-overlay" />
+      <form className="form-card login-card" onSubmit={submit}>
+        <h2>Create your account.</h2>
+        <p>Start planning the trip you have been picturing.</p>
+        <InputField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <InputField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <SubmitButton status={authAction.status} loadingText="Creating..." idleText="Create account" />
+        <Link className="ghost-btn create-account-cta" to="/login">
+          Already have an account? Sign in
+        </Link>
+        {authAction.status === 'error' && <p className="login-error">{authAction.error}</p>}
+      </form>
+    </section>
+  )
+}
+
+function PreferenceTileGroup({ title, options, value, onChange, columns = 3 }) {
+  return (
+    <section className="pref-group">
+      <p>{title}</p>
+      <div className="pref-tiles" style={{ '--pref-columns': columns }}>
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`pref-tile ${value === option.value ? 'is-selected' : ''}`}
+            onClick={() => onChange(option.value)}
+          >
+            <span className="pref-icon" aria-hidden="true">
+              {option.icon}
+            </span>
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function OnboardingPage() {
+  const { userId } = useParams()
+  const navigate = useNavigate()
+  const [step, setStep] = useState(1)
+  const [dietaryPreference, setDietaryPreference] = useState('Vegan')
+  const [personalityType, setPersonalityType] = useState('Ambivert')
+  const [tripCategory, setTripCategory] = useState('Friends')
+  const [lactoseIntolerant, setLactoseIntolerant] = useState(true)
+  const [drinksAlcohol, setDrinksAlcohol] = useState(false)
+  const [smokes, setSmokes] = useState(false)
+  const saveAction = useApiAction((payload) => updatePreferences(userId, payload))
+
+  const dietaryOptions = [
+    { value: 'Vegan', label: 'Vegan', icon: 'VG' },
+    { value: 'Lactose Intolerant', label: 'Lactose Intolerant', icon: 'LI' },
+    { value: 'MeatLover', label: 'MeatLover', icon: 'ML' },
+  ]
+  const personalityOptions = [
+    { value: 'Extrovert', label: 'Extrovert', icon: 'EX' },
+    { value: 'Ambivert', label: 'Ambivert', icon: 'AM' },
+    { value: 'Introvert', label: 'Introvert', icon: 'IN' },
+  ]
+  const tripOptions = [
+    { value: 'Romantic', label: 'Romantic', icon: 'RO' },
+    { value: 'Family', label: 'Family', icon: 'FA' },
+    { value: 'Friends', label: 'Friends', icon: 'FR' },
+  ]
+  const yesNoOptions = [
+    { value: true, label: 'Yes', icon: 'Y' },
+    { value: false, label: 'No', icon: 'N' },
+  ]
+
+  const submit = async (event) => {
+    event.preventDefault()
+    if (step === 1) {
+      setStep(2)
+      return
+    }
+
+    const response = await saveAction.run({
+      foodPreferences: dietaryPreference,
+      allergies: lactoseIntolerant ? 'Lactose' : 'None',
+      dietaryPreference,
+      personalityType,
+      tripCategory,
+      lactoseIntolerant,
+      drinksAlcohol,
+      smokes,
+    })
+    if (response?.id) {
+      navigate('/assistant')
+    }
+  }
+
+  return (
+    <section className="login-page-bleed">
+      <MasonryBackground columnsCount={3} className="login-masonry" />
+      <div className="login-overlay" />
+      <form className="form-card login-card onboarding-card" onSubmit={submit}>
+        <h2>Tell us about your travel style.</h2>
+        <p>Step {step} of 2</p>
+
+        {step === 1 ? (
+          <>
+            <PreferenceTileGroup
+              title="Dietary Preferences"
+              options={dietaryOptions}
+              value={dietaryPreference}
+              onChange={setDietaryPreference}
+              columns={3}
+            />
+            <PreferenceTileGroup
+              title="Personality"
+              options={personalityOptions}
+              value={personalityType}
+              onChange={setPersonalityType}
+              columns={3}
+            />
+            <PreferenceTileGroup
+              title="Trip Category"
+              options={tripOptions}
+              value={tripCategory}
+              onChange={setTripCategory}
+              columns={3}
+            />
+            <button type="submit">Next</button>
+          </>
+        ) : (
+          <>
+            <PreferenceTileGroup
+              title="Lactose Intolerant"
+              options={yesNoOptions}
+              value={lactoseIntolerant}
+              onChange={setLactoseIntolerant}
+              columns={2}
+            />
+            <PreferenceTileGroup
+              title="Drinking"
+              options={yesNoOptions}
+              value={drinksAlcohol}
+              onChange={setDrinksAlcohol}
+              columns={2}
+            />
+            <PreferenceTileGroup
+              title="Smoking"
+              options={yesNoOptions}
+              value={smokes}
+              onChange={setSmokes}
+              columns={2}
+            />
+            <div className="onboarding-actions">
+              <button type="button" className="ghost-btn" onClick={() => setStep(1)}>
+                Back
+              </button>
+              <SubmitButton status={saveAction.status} loadingText="Saving..." idleText="Finish" />
+            </div>
+          </>
+        )}
+
+        {saveAction.status === 'error' && <p className="login-error">{saveAction.error}</p>}
+      </form>
+    </section>
   )
 }
 
@@ -863,6 +1039,7 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
+      <Route path="/onboarding/:userId" element={<OnboardingPage />} />
       <Route path="/users/:userId" element={<UserProfilePage />} />
       <Route path="/preferences/:userId" element={<PreferencesPage />} />
       <Route path="/trips/generate" element={<TripGeneratePage />} />
