@@ -8,6 +8,8 @@ import httpx
 from pydantic import ValidationError
 
 from app.core.config import get_settings
+from app.schemas.assistant_chat_request import AssistantChatRequest
+from app.schemas.assistant_chat_response import AssistantChatResponse
 from app.schemas.assistant_request import AssistantRequest
 from app.schemas.assistant_response import AssistantResponse
 
@@ -90,6 +92,58 @@ class LlamaClient:
             fallback = self._build_fallback_plan(request)
             return AssistantResponse.model_validate(fallback)
 
+    def generate_chat_reply(
+        self,
+        request: AssistantChatRequest,
+        prompt_template: str,
+        history: list[str],
+    ) -> AssistantChatResponse:
+        prompt = self._build_chat_prompt(request, prompt_template, history)
+        start_time = time.perf_counter()
+        try:
+            logger.info(
+                "Dispatching Ollama chat destination=%s area=%s history=%s",
+                request.destination,
+                request.area_name or "none",
+                len(history),
+            )
+            response = self._http_client.post(
+                "/api/generate",
+                json={
+                    "model": self._model_name,
+                    "prompt": prompt,
+                    "stream": False,
+                },
+            )
+            response.raise_for_status()
+
+            payload = response.json()
+            raw_content = payload.get("response")
+            if not isinstance(raw_content, str) or not raw_content.strip():
+                raise LlamaClientError("Ollama returned an empty chat response payload")
+
+            reply = raw_content.strip()
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.info(
+                "Ollama chat response received destination=%s area=%s durationMs=%s",
+                request.destination,
+                request.area_name or "none",
+                duration_ms,
+            )
+            return AssistantChatResponse(
+                destination=request.destination,
+                area_name=request.area_name,
+                reply=reply,
+            )
+        except LlamaClientError:
+            raise
+        except httpx.HTTPError as exception:
+            logger.exception("Ollama chat transport failure; using fallback reply")
+            return self._build_fallback_chat_reply(request)
+        except ValidationError as exception:
+            logger.exception("Ollama chat validation failure; using fallback reply")
+            return self._build_fallback_chat_reply(request)
+
     def _build_prompt(self, request: AssistantRequest, prompt_template: str) -> str:
         fixed_cost = sum(
             quote.amount
@@ -170,6 +224,43 @@ Places:
 
 User prompt:
 {request.prompt or "No extra prompt provided."}
+"""
+
+    def _build_chat_prompt(
+        self,
+        request: AssistantChatRequest,
+        prompt_template: str,
+        history: list[str],
+    ) -> str:
+        recent_history = history[-6:]
+        history_lines = "\n".join(f"- {entry}" for entry in recent_history) or "- No prior context."
+        location_line = request.area_name or request.destination
+        coordinate_line = (
+            f"{request.latitude:.6f}, {request.longitude:.6f}"
+            if request.latitude is not None and request.longitude is not None
+            else "No coordinates provided."
+        )
+
+        return f"""{prompt_template}
+
+You are Tripify's conversational travel helper.
+Answer naturally in plain text, not JSON.
+Be specific, practical, and concise.
+If the user asks about the selected area, answer about that area first.
+If you are unsure about an exact live fact, say so clearly instead of inventing it.
+Use the user's vibe and location context to tailor your suggestions.
+
+Context:
+- Destination: {request.destination}
+- Selected area: {location_line}
+- Preferred vibe: {request.vibe}
+- Coordinates: {coordinate_line}
+
+Recent conversation:
+{history_lines}
+
+Latest user question:
+{request.message}
 """
 
     def _parse_model_json(self, raw_content: str) -> dict[str, Any]:
@@ -313,6 +404,18 @@ User prompt:
             "summary": f"Balanced trip to {destination}{weather_note}",
             "steps": steps,
         }
+
+    def _build_fallback_chat_reply(self, request: AssistantChatRequest) -> AssistantChatResponse:
+        area_name = request.area_name or request.destination
+        reply = (
+            f"I can help with {area_name}. Based on your {request.vibe} preference, "
+            "ask me about nearby activities, timing, budget tradeoffs, or whether a stop is worth prioritizing."
+        )
+        return AssistantChatResponse(
+            destination=request.destination,
+            area_name=request.area_name,
+            reply=reply,
+        )
 
     def _coerce_text(self, value: Any) -> str:
         if value is None:

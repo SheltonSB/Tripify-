@@ -214,20 +214,39 @@ public class ExploreService {
         }
     }
 
-    public List<LiveEventResponse> getLiveEvents(String destination) {
+    public List<LiveEventResponse> getLiveEvents(
+        String destination,
+        String area,
+        Double latitude,
+        Double longitude,
+        int radiusMiles) {
         if (destination == null || destination.isBlank() || ticketmasterApiKey.isBlank()) {
             return List.of();
         }
 
         try {
+            int resolvedRadiusMiles = Math.max(1, Math.min(radiusMiles, 50));
+            String keyword = area != null && !area.isBlank()
+                ? area.trim() + " " + destination.trim()
+                : destination.trim();
+
             @SuppressWarnings("unchecked")
             Map<String, Object> response = ticketmasterClient.get()
                 .uri(uriBuilder -> uriBuilder
                     .path("/discovery/v2/events.json")
                     .queryParam("apikey", ticketmasterApiKey)
-                    .queryParam("keyword", destination)
+                    .queryParam("keyword", keyword)
                     .queryParam("sort", "date,asc")
                     .queryParam("size", 6)
+                    .queryParamIfPresent("latlong", latitude != null && longitude != null
+                        ? java.util.Optional.of(latitude + "," + longitude)
+                        : java.util.Optional.empty())
+                    .queryParamIfPresent("radius", latitude != null && longitude != null
+                        ? java.util.Optional.of(resolvedRadiusMiles)
+                        : java.util.Optional.empty())
+                    .queryParamIfPresent("unit", latitude != null && longitude != null
+                        ? java.util.Optional.of("miles")
+                        : java.util.Optional.empty())
                     .build())
                 .retrieve()
                 .body(Map.class);
@@ -255,10 +274,18 @@ public class ExploreService {
                 List<Map<String, Object>> priceRanges = (List<Map<String, Object>>) event.getOrDefault("priceRanges", List.of());
 
                 Map<String, Object> venue = venues.isEmpty() ? Map.of() : venues.get(0);
-                Map<String, Object> city = venue.get("city") instanceof Map<?, ?> map
-                    ? (Map<String, Object>) map
+                Map<String, Object> city = venue.get("city") instanceof Map<?, ?> cityMap
+                    ? (Map<String, Object>) cityMap
+                    : Map.of();
+                Map<String, Object> venueLocation = venue.get("location") instanceof Map<?, ?> locationMap
+                    ? (Map<String, Object>) locationMap
                     : Map.of();
                 Map<String, Object> priceRange = priceRanges.isEmpty() ? Map.of() : priceRanges.get(0);
+                Double eventDistanceMeters = distanceMeters(
+                    latitude,
+                    longitude,
+                    asDouble(venueLocation.get("latitude")),
+                    asDouble(venueLocation.get("longitude")));
 
                 results.add(new LiveEventResponse(
                     String.valueOf(event.getOrDefault("id", "")),
@@ -269,12 +296,13 @@ public class ExploreService {
                     bestImage(images),
                     String.valueOf(event.getOrDefault("url", "")),
                     asDouble(priceRange.get("min")),
-                    String.valueOf(priceRange.getOrDefault("currency", ""))));
+                    String.valueOf(priceRange.getOrDefault("currency", "")),
+                    eventDistanceMeters));
             }
 
             return results;
         } catch (RuntimeException exception) {
-            logger.warn("Ticketmaster event lookup failed destination={}", destination, exception);
+            logger.warn("Ticketmaster event lookup failed destination={} area={}", destination, area, exception);
             return List.of();
         }
     }
@@ -326,6 +354,23 @@ public class ExploreService {
             }
         }
         return null;
+    }
+
+    private Double distanceMeters(Double originLatitude, Double originLongitude, Double targetLatitude, Double targetLongitude) {
+        if (originLatitude == null || originLongitude == null || targetLatitude == null || targetLongitude == null) {
+            return null;
+        }
+
+        double earthRadiusMeters = 6_371_000;
+        double latDistance = Math.toRadians(targetLatitude - originLatitude);
+        double lonDistance = Math.toRadians(targetLongitude - originLongitude);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+            + Math.cos(Math.toRadians(originLatitude))
+            * Math.cos(Math.toRadians(targetLatitude))
+            * Math.sin(lonDistance / 2)
+            * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadiusMeters * c;
     }
 
     private String resolveBaseUrl(String configuredValue, String fallback) {

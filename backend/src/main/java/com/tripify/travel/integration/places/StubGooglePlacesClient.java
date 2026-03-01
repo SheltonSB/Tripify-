@@ -66,7 +66,9 @@ public class StubGooglePlacesClient implements GooglePlacesClient {
                         Map<String, Object> location = (Map<String, Object>) place.get("location");
                         double estimatedCost = estimateActivityCost(category, place.get("priceLevel"));
                         Double distanceMeters = distanceMeters(latitude, longitude, location);
-                        return new PlaceCandidate(name, category, vibe, estimatedCost, "google-places", distanceMeters);
+                        Double placeLatitude = asDouble(location == null ? null : location.get("latitude"));
+                        Double placeLongitude = asDouble(location == null ? null : location.get("longitude"));
+                        return new PlaceCandidate(name, category, vibe, estimatedCost, "google-places", distanceMeters, placeLatitude, placeLongitude);
                     }).toList();
                 }
             } catch (RuntimeException exception) {

@@ -79,6 +79,10 @@ export function buildAssistantPlan(payload) {
   return request('/api/assistant/plan', { method: 'POST', body: payload, timeoutMs: AI_TIMEOUT_MS })
 }
 
+export function chatWithAssistant(payload) {
+  return request('/api/assistant/chat', { method: 'POST', body: payload, timeoutMs: AI_TIMEOUT_MS })
+}
+
 export function getAssistantPlansByTrip(tripId) {
   return request(`/api/assistant/trips/${tripId}`)
 }
@@ -93,8 +97,25 @@ export function getDestinationPhotos(destination) {
   })
 }
 
-export function getLiveEvents(destination) {
-  return request(`/api/explore/events?destination=${encodeURIComponent(destination)}`, {
+export function getLiveEvents(destination, options = {}) {
+  const params = new URLSearchParams({
+    destination,
+  })
+
+  if (options.area) {
+    params.set('area', options.area)
+  }
+  if (options.latitude != null && options.latitude !== '') {
+    params.set('latitude', String(options.latitude))
+  }
+  if (options.longitude != null && options.longitude !== '') {
+    params.set('longitude', String(options.longitude))
+  }
+  if (options.radiusMiles != null && options.radiusMiles !== '') {
+    params.set('radiusMiles', String(options.radiusMiles))
+  }
+
+  return request(`/api/explore/events?${params.toString()}`, {
     timeoutMs: DISCOVERY_TIMEOUT_MS,
   })
 }

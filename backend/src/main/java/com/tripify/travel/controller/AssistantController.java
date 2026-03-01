@@ -1,5 +1,7 @@
 package com.tripify.travel.controller;
 
+import com.tripify.travel.dto.assistant.AssistantChatRequest;
+import com.tripify.travel.dto.assistant.AssistantChatResponse;
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
 import com.tripify.travel.dto.assistant.StoredAssistantPlanResponse;
@@ -28,6 +30,11 @@ public class AssistantController {
     @PostMapping("/plan")
     public ResponseEntity<AssistantPlanResponse> buildPlan(@RequestBody AssistantPlanRequest request) {
         return ResponseEntity.ok(assistantService.buildPlan(request));
+    }
+
+    @PostMapping("/chat")
+    public ResponseEntity<AssistantChatResponse> chat(@RequestBody AssistantChatRequest request) {
+        return ResponseEntity.ok(assistantService.chat(request));
     }
 
     @GetMapping("/trips/{tripId}")

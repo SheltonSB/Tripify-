@@ -1,5 +1,7 @@
 package com.tripify.travel.integration.ai;
 
+import com.tripify.travel.dto.assistant.AssistantChatRequest;
+import com.tripify.travel.dto.assistant.AssistantChatResponse;
 import io.micrometer.core.instrument.MeterRegistry;
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
@@ -40,6 +42,30 @@ public class FastApiAssistantClient implements AssistantClient, AssistantService
     @Override
     public AssistantPlanResponse buildPlan(AssistantPlanRequest request) {
         return generatePlan(request);
+    }
+
+    @Override
+    public AssistantChatResponse chat(AssistantChatRequest request) {
+        try {
+            AssistantChatResponse response = restClient.post()
+                .uri("/internal/assistant/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(toChatPayload(request))
+                .retrieve()
+                .body(AssistantChatResponse.class);
+
+            if (response == null) {
+                throw new IntegrationException("AI chat returned an empty response");
+            }
+            return response;
+        } catch (RestClientResponseException exception) {
+            throw new IntegrationException(
+                "AI chat service returned " + exception.getStatusCode() + ": " + exception.getResponseBodyAsString(),
+                exception);
+        } catch (RestClientException exception) {
+            throw new IntegrationException("AI chat service is unavailable", exception);
+        }
     }
 
     @Override
@@ -116,6 +142,28 @@ public class FastApiAssistantClient implements AssistantClient, AssistantService
         }
         if (request.places() != null && !request.places().isEmpty()) {
             payload.put("places", request.places());
+        }
+        return payload;
+    }
+
+    private Map<String, Object> toChatPayload(AssistantChatRequest request) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("destination", request.destination());
+        payload.put("message", request.message());
+        if (request.userId() != null) {
+            payload.put("userId", request.userId());
+        }
+        if (request.areaName() != null && !request.areaName().isBlank()) {
+            payload.put("areaName", request.areaName());
+        }
+        if (request.vibe() != null && !request.vibe().isBlank()) {
+            payload.put("vibe", request.vibe());
+        }
+        if (request.latitude() != null) {
+            payload.put("latitude", request.latitude());
+        }
+        if (request.longitude() != null) {
+            payload.put("longitude", request.longitude());
         }
         return payload;
     }

@@ -8,6 +8,8 @@ public record RecommendedPlaceResponse(
     double estimatedCost,
     String provider,
     Double distanceMeters,
+    Double latitude,
+    Double longitude,
     String note) {
 
     public static RecommendedPlaceResponse fromPlace(PlaceCandidate place) {
@@ -28,6 +30,8 @@ public record RecommendedPlaceResponse(
             place.estimatedCost(),
             place.provider(),
             place.distanceMeters(),
+            place.latitude(),
+            place.longitude(),
             note);
     }
 }

@@ -56,7 +56,7 @@ public class StubYelpClient implements YelpClient {
                         double estimatedCost = business.get("price") instanceof String price
                             ? price.length() * 15
                             : 25;
-                        return new PlaceCandidate(name, category, vibe, estimatedCost, "yelp", null);
+                        return new PlaceCandidate(name, category, vibe, estimatedCost, "yelp", null, null, null);
                     }).toList();
                 }
             } catch (RuntimeException exception) {

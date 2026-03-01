@@ -29,8 +29,13 @@ public class ExploreController {
     }
 
     @GetMapping("/events")
-    public ResponseEntity<List<LiveEventResponse>> getLiveEvents(@RequestParam String destination) {
-        return ResponseEntity.ok(exploreService.getLiveEvents(destination));
+    public ResponseEntity<List<LiveEventResponse>> getLiveEvents(
+        @RequestParam String destination,
+        @RequestParam(required = false) String area,
+        @RequestParam(required = false) Double latitude,
+        @RequestParam(required = false) Double longitude,
+        @RequestParam(defaultValue = "15") int radiusMiles) {
+        return ResponseEntity.ok(exploreService.getLiveEvents(destination, area, latitude, longitude, radiusMiles));
     }
 
     @GetMapping("/recommendations")

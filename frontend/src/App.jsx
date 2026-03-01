@@ -1,11 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  buildAssistantPlan,
+  chatWithAssistant,
   confirmTrip,
   generateTrip,
-  getAssistantPlansByTrip,
-  getAssistantPlansByUser,
   getDestinationPhotos,
   getHealth,
   getLiveEvents,
@@ -363,21 +361,22 @@ function DealCard({ title, detail, image }) {
 function HomePage() {
   const { currentUser } = useAuth()
   const navigate = useNavigate()
-  const [searchLocation, setSearchLocation] = useState('Chicago')
-  const [activeDestination, setActiveDestination] = useState('Chicago')
+  const [searchLocation, setSearchLocation] = useState('')
+  const [activeDestination, setActiveDestination] = useState('')
   const [budget] = useState('1500')
   const [people] = useState('2')
   const [days] = useState('3')
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
   const [locationError, setLocationError] = useState('')
+  const [selectedPlace, setSelectedPlace] = useState(null)
   const [dietaryPreference, setDietaryPreference] = useState('Vegan')
   const [personalityType, setPersonalityType] = useState('Ambivert')
   const [tripCategory, setTripCategory] = useState('Friends')
   const profileAction = useApiAction((userId) => getUser(userId))
   const preferencesAction = useApiAction((payload) => updatePreferences(currentUser.id, payload))
   const photosAction = useApiAction((destination) => getDestinationPhotos(destination))
-  const eventsAction = useApiAction((destination) => getLiveEvents(destination))
+  const eventsAction = useApiAction((destination, eventOptions = {}) => getLiveEvents(destination, eventOptions))
   const recommendationsAction = useApiAction((destination, latitudeOverride, longitudeOverride) =>
     getLiveRecommendations({
       destination,
@@ -397,6 +396,7 @@ function HomePage() {
     }
 
     setActiveDestination(resolvedDestination)
+    setSelectedPlace(null)
     recommendationsAction.run(resolvedDestination, latitudeOverride, longitudeOverride)
     photosAction.run(resolvedDestination)
     eventsAction.run(resolvedDestination)
@@ -412,6 +412,36 @@ function HomePage() {
   const buildAppleMapsUrl = (placeName) => {
     const query = [placeName, activeDestination].filter(Boolean).join(', ')
     return `https://maps.apple.com/?q=${encodeURIComponent(query)}`
+  }
+
+  const buildAssistantAreaUrl = (place) => {
+    const params = new URLSearchParams({
+      destination: activeDestination,
+      prompt: `Tell me more about ${place.name} in ${activeDestination} and help me plan around this area.`,
+    })
+
+    if (place.latitude != null) {
+      params.set('latitude', String(place.latitude))
+    }
+    if (place.longitude != null) {
+      params.set('longitude', String(place.longitude))
+    }
+    if (place.name) {
+      params.set('areaName', place.name)
+    }
+
+    return `/assistant?${params.toString()}`
+  }
+
+  const selectPlaceArea = (place) => {
+    setSelectedPlace(place)
+    eventsAction.run(activeDestination, {
+      area: place.name,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      radiusMiles: 15,
+    })
+    jumpToSection('home-live-events')
   }
 
   const useCurrentArea = () => {
@@ -450,9 +480,7 @@ function HomePage() {
   useEffect(() => {
     if (currentUser?.id) {
       profileAction.run(currentUser.id)
-      return
     }
-    refreshDiscovery('Chicago')
   }, [currentUser?.id])
 
   useEffect(() => {
@@ -465,7 +493,7 @@ function HomePage() {
     setPersonalityType(profile.personalityType || 'Ambivert')
     setTripCategory(profile.tripCategory || 'Friends')
 
-    if (!profileNeedsSetup(profile)) {
+    if (!profileNeedsSetup(profile) && activeDestination) {
       refreshDiscovery(activeDestination)
     }
   }, [profileAction.data])
@@ -502,8 +530,12 @@ function HomePage() {
   }
 
   const openTripPlanner = () => {
+    const targetLocation = (activeDestination || searchLocation || '').trim()
+    if (!targetLocation) {
+      return
+    }
     const query = new URLSearchParams({
-      location: activeDestination,
+      location: targetLocation,
       budget,
       people,
       days,
@@ -515,30 +547,54 @@ function HomePage() {
   return (
     <AppShell
       title="Plan Better Trips With Tripify"
-      subtitle="Choose a destination, generate options, and build a practical itinerary in minutes."
+      subtitle="Search a destination, explore live places nearby, and use the AI guide only when you need help."
     >
       <section className="landing-hero">
         <MasonryBackground />
         <div className="landing-content">
-          <p className="landing-kicker">Smart itineraries for budget-conscious travelers</p>
-          <h2>Where are you traveling next?</h2>
+          <p className="landing-kicker">Live discovery for smarter travelers</p>
+          <h2>Start with a blank search, then build around a real place.</h2>
+          <p className="landing-intro">
+            Tripify ranks live activities, nearby areas, and ticketed events from provider data. Search a destination
+            first, then let the AI guide explain what is worth doing there.
+          </p>
           <form className="landing-search" onSubmit={handleSearch}>
             <InputField
               label="Destination"
               value={searchLocation}
               onChange={(e) => setSearchLocation(e.target.value)}
-              placeholder="Enter city or country"
+              placeholder="Search any city, area, island, or country"
               required
             />
             <button type="submit" className="search-btn">
               Show live results
             </button>
           </form>
+          <div className="landing-annotation-grid">
+            <article className="landing-annotation">
+              <span className="annotation-pill">1</span>
+              <strong>Search first</strong>
+              <p>Nothing loads until you choose where you actually want to go.</p>
+            </article>
+            <article className="landing-annotation">
+              <span className="annotation-pill">2</span>
+              <strong>Pick an area</strong>
+              <p>Choose a nearby place, then Tripify narrows events and recommendations around that area.</p>
+            </article>
+            <article className="landing-annotation">
+              <span className="annotation-pill">3</span>
+              <strong>Ask the AI guide</strong>
+              <p>The AI explains tradeoffs and answers questions about the area you selected.</p>
+            </article>
+          </div>
           <div className="actions-row">
-            <p className="support-text">Try: London, Tokyo, Vancouver, Mexico City, Lisbon</p>
+            <p className="support-text">Try: Hawaii, London, Tokyo, Vancouver, Mexico City, Lisbon</p>
             <button type="button" className="ghost-btn" onClick={openTripPlanner}>
               Open trip planner
             </button>
+            <Link className="ai-guide-btn" to="/assistant">
+              AI Travel Guide
+            </Link>
           </div>
         </div>
       </section>
@@ -596,18 +652,22 @@ function HomePage() {
       <section className="preset-trips" id="home-nearby-places">
         <div className="deals-head">
           <div>
-            <h2>{activeDestination} Live Activities Nearby (Estimated Spend)</h2>
-            <p>Live activities are ranked in real time from Google Places, live pricing, weather, and your budget.</p>
+            <h2>{activeDestination ? `${activeDestination} Live Activities Nearby (Estimated Spend)` : 'Live Activities Nearby'}</h2>
+            <p>
+              {activeDestination
+                ? 'Live activities are ranked in real time from provider data, live pricing, weather, and your budget.'
+                : 'Search a destination first to load live activities, nearby places, and pricing.'}
+            </p>
           </div>
           <div className="actions-row">
-            <button type="button" className="ghost-btn" onClick={() => refreshDiscovery(activeDestination)}>
+            <button type="button" className="ghost-btn" onClick={() => activeDestination && refreshDiscovery(activeDestination)} disabled={!activeDestination}>
               Refresh live data
             </button>
             <button type="button" className="ghost-btn" onClick={useCurrentArea}>
               Use my area for nearest places
             </button>
             <Link className="ghost-btn" to="/assistant">
-              Build with AI assistant
+              Open AI guide
             </Link>
           </div>
         </div>
@@ -651,7 +711,17 @@ function HomePage() {
         ) : null}
 
         <div className="preset-grid">
-          {recommendationsAction.status === 'loading' ? (
+          {!activeDestination && recommendationsAction.status === 'idle' ? (
+            <article className="preset-card magic-bento landing-empty-card">
+              <div className="magic-bento-glow" aria-hidden="true" />
+              <p className="preset-subtitle">Welcome</p>
+              <h3>Search to unlock live places</h3>
+              <p>
+                Start with any destination above. Once you search, Tripify will pull live nearby activities and rank
+                them around your budget and preferences.
+              </p>
+            </article>
+          ) : recommendationsAction.status === 'loading' ? (
             <article className="preset-card magic-bento">
               <div className="magic-bento-glow" aria-hidden="true" />
               <p className="preset-subtitle">{activeDestination}</p>
@@ -675,9 +745,15 @@ function HomePage() {
                 <div className="preset-footer">
                   <strong>~${Number(place.estimatedCost || 0).toFixed(0)}</strong>
                   <div className="actions-row">
+                    <button type="button" className="ghost-btn" onClick={() => selectPlaceArea(place)}>
+                      See nearby events
+                    </button>
                     <a href={buildAppleMapsUrl(place.name)} target="_blank" rel="noreferrer">
                       Open in Maps
                     </a>
+                    <Link to={buildAssistantAreaUrl(place)}>
+                      Ask AI about this area
+                    </Link>
                     <Link
                       to={`/trips/generate?location=${encodeURIComponent(activeDestination)}&budget=${budget}&days=${days}&people=${people}&userId=${encodeURIComponent(String(currentUser?.id || 1))}`}
                     >
@@ -690,10 +766,12 @@ function HomePage() {
           ) : (
             <article className="preset-card magic-bento">
               <div className="magic-bento-glow" aria-hidden="true" />
-              <p className="preset-subtitle">{activeDestination}</p>
-              <h3>No live activities yet</h3>
+              <p className="preset-subtitle">{activeDestination || 'No destination selected'}</p>
+              <h3>{activeDestination ? 'No live activities yet' : 'Search to begin'}</h3>
               <p>
-                Check your provider keys, then refresh. This section only shows provider-backed activities.
+                {activeDestination
+                  ? 'Check your provider keys, then refresh. This section only shows provider-backed activities.'
+                  : 'Use the search box above. The landing page now starts blank on purpose instead of preloading a fixed city.'}
               </p>
             </article>
           )}
@@ -725,18 +803,45 @@ function HomePage() {
       <section className="preset-trips" id="home-live-events">
         <div className="deals-head">
           <div>
-            <h2>{activeDestination} Live Ticketed Events</h2>
-            <p>Ticketmaster events are shown separately because these can have real live ticket pricing.</p>
+            <h2>
+              {selectedPlace?.name ? `${selectedPlace.name} Nearby Live Events` : activeDestination ? `${activeDestination} Live Ticketed Events` : 'Live Ticketed Events'}
+            </h2>
+            <p>
+              {selectedPlace?.name
+                ? `Showing live events near the selected area so you do not get results that are hours away.`
+                : activeDestination
+                  ? 'Select an activity first to narrow events to that specific area.'
+                  : 'Search a destination first, then pick an activity to filter events around a real area.'}
+            </p>
           </div>
           <div className="actions-row">
             <button type="button" className="ghost-btn" onClick={() => jumpToSection('home-nearby-places')}>
               Back to nearby places
             </button>
+            {selectedPlace ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => {
+                  setSelectedPlace(null)
+                  eventsAction.run(activeDestination)
+                }}
+              >
+                Show destination-wide events
+              </button>
+            ) : null}
           </div>
         </div>
 
         <div className="preset-grid">
-          {eventsAction.status === 'loading' ? (
+          {!activeDestination && eventsAction.status === 'idle' ? (
+            <article className="preset-card magic-bento landing-empty-card">
+              <div className="magic-bento-glow" aria-hidden="true" />
+              <p className="preset-subtitle">Events wait for a place</p>
+              <h3>Choose a destination, then an area</h3>
+              <p>Tripify only shows events after you search a destination, and it works best once you select a nearby place first.</p>
+            </article>
+          ) : eventsAction.status === 'loading' ? (
             <article className="preset-card magic-bento">
               <div className="magic-bento-glow" aria-hidden="true" />
               <p className="preset-subtitle">{activeDestination}</p>
@@ -756,6 +861,11 @@ function HomePage() {
                 <p className="preset-subtitle">{eventItem.venueName || eventItem.city || activeDestination}</p>
                 <h3>{eventItem.name}</h3>
                 <p>{eventItem.startDateTime || 'Date TBD'}</p>
+                {eventItem.distanceMeters != null ? (
+                  <p>{(eventItem.distanceMeters / 1609.34).toFixed(1)} miles from the selected area</p>
+                ) : selectedPlace ? (
+                  <p>Inside the selected area radius</p>
+                ) : null}
                 <div className="preset-footer">
                   <strong>
                     {eventItem.minPrice ? `From ${eventItem.minPrice} ${eventItem.currency || ''}` : 'Price TBD'}
@@ -1308,41 +1418,32 @@ function TripDetailPage() {
 
 function AssistantPage() {
   const { currentUser } = useAuth()
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [intent, setIntent] = useState(() => ({
     userId: currentUser?.id ? String(currentUser.id) : '1',
-    tripId: '',
-    destination: 'Chicago',
+    destination: searchParams.get('destination') || '',
     budget: '1500',
-    days: '3',
-    people: '2',
-    origin: 'Current location',
-    vibe: 'balanced',
-    latitude: '',
-    longitude: '',
+    vibe: searchParams.get('vibe') || 'balanced',
+    latitude: searchParams.get('latitude') || '',
+    longitude: searchParams.get('longitude') || '',
+    areaName: searchParams.get('areaName') || '',
     dietaryPreference: 'Not specified',
     personalityType: 'Not specified',
     tripCategory: 'Not specified',
     lactoseIntolerant: '',
     drinksAlcohol: '',
     smokes: '',
-    prompt: 'Design a value-focused plan with food and local activities.',
   }))
   const [locationError, setLocationError] = useState('')
-  const assistantAction = useApiAction((payload) => buildAssistantPlan(payload))
-  const photoAction = useApiAction(() => getDestinationPhotos(intent.destination))
-  const eventsAction = useApiAction(() => getLiveEvents(intent.destination))
-  const [historyStatus, setHistoryStatus] = useState('idle')
-  const [historyData, setHistoryData] = useState(null)
-  const [historyError, setHistoryError] = useState('')
+  const chatAction = useApiAction((payload) => chatWithAssistant(payload))
+  const [chatInput, setChatInput] = useState('')
+  const [chatMessages, setChatMessages] = useState([])
   const profileAction = useApiAction((id) => getUser(id))
-  const latestPlan = assistantAction.status === 'success' ? assistantAction.data : null
 
   const setIntentField = (field, value) => {
     setIntent((prev) => ({ ...prev, [field]: value }))
   }
 
-  const numericTripId = intent.tripId.trim() ? Number(intent.tripId) : null
   const numericUserId = Number(intent.userId)
 
   const inferVibeFromProfile = (profile) => {
@@ -1390,6 +1491,21 @@ function AssistantPage() {
     }))
   }, [profileAction.data])
 
+  useEffect(() => {
+    const areaLabel = intent.areaName || intent.destination
+    if (!areaLabel) {
+      return
+    }
+
+    setChatMessages([
+      {
+        role: 'assistant',
+        text: `Ask me anything about ${areaLabel}. I can explain what is nearby, what fits your budget, and which stop is worth prioritizing first.`,
+      },
+    ])
+    setChatInput('')
+  }, [intent.areaName, intent.destination])
+
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported in this browser.')
@@ -1411,38 +1527,28 @@ function AssistantPage() {
     )
   }
 
-  const buildPromptWithIntent = () => {
-    const yesNo = (value) => (value === 'yes' ? 'Yes' : value === 'no' ? 'No' : 'Not specified')
-    const lines = [
-      intent.prompt,
-      '',
-      'Intent preferences:',
-      `- Dietary preference: ${intent.dietaryPreference || 'Not specified'}`,
-      `- Personality: ${intent.personalityType || 'Not specified'}`,
-      `- Trip category: ${intent.tripCategory || 'Not specified'}`,
-      `- Lactose intolerant: ${yesNo(intent.lactoseIntolerant)}`,
-      `- Drinks alcohol: ${yesNo(intent.drinksAlcohol)}`,
-      `- Smokes: ${yesNo(intent.smokes)}`,
-      `- Vibe: ${intent.vibe || 'balanced'}`,
-    ]
-    return lines.join('\n')
-  }
-
-  const submit = async (event) => {
+  const submitChat = async (event) => {
     event.preventDefault()
-    const payload = {
-      userId: numericUserId,
-      destination: intent.destination,
-      budget: Number(intent.budget),
-      days: Number(intent.days),
-      people: Number(intent.people),
-      prompt: buildPromptWithIntent(),
-      vibe: intent.vibe,
-      origin: intent.origin,
+    const message = chatInput.trim()
+    if (!message) {
+      return
     }
 
-    if (numericTripId) {
-      payload.tripId = numericTripId
+    const outgoingMessage = { role: 'user', text: message }
+    setChatMessages((prev) => [...prev, outgoingMessage])
+    setChatInput('')
+
+    const payload = {
+      destination: intent.destination,
+      message,
+      vibe: intent.vibe,
+    }
+
+    if (Number.isFinite(numericUserId) && numericUserId > 0) {
+      payload.userId = numericUserId
+    }
+    if (intent.areaName.trim()) {
+      payload.areaName = intent.areaName.trim()
     }
     if (intent.latitude.trim()) {
       const parsedLatitude = Number(intent.latitude)
@@ -1457,78 +1563,69 @@ function AssistantPage() {
       }
     }
 
-    const response = await assistantAction.run(payload)
-    if (response?.steps?.length) {
-      navigate('/plans/ready', { state: { plan: response } })
-    }
-  }
-
-  const loadSavedByTrip = async () => {
-    if (!numericTripId) {
-      setHistoryStatus('error')
-      setHistoryError('Enter a trip ID before loading saved plans by trip.')
-      setHistoryData(null)
+    const response = await chatAction.run(payload)
+    if (response?.reply) {
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: response.reply }])
       return
     }
 
-    setHistoryStatus('loading')
-    setHistoryError('')
-    setHistoryData(null)
-
-    try {
-      const response = await getAssistantPlansByTrip(numericTripId)
-      setHistoryData(response)
-      setHistoryStatus('success')
-    } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : 'Unknown error')
-      setHistoryStatus('error')
-    }
-  }
-
-  const loadSavedByUser = async () => {
-    setHistoryStatus('loading')
-    setHistoryError('')
-    setHistoryData(null)
-
-    try {
-      const response = await getAssistantPlansByUser(Number(intent.userId))
-      setHistoryData(response)
-      setHistoryStatus('success')
-    } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : 'Unknown error')
-      setHistoryStatus('error')
-    }
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        text: 'I could not answer that right now. Try again in a moment or ask a more specific question about this area.',
+      },
+    ])
   }
 
   return (
     <AppShell
-      title="AI itinerary assistant"
-      subtitle="POST /api/assistant/plan plus GET /api/assistant/trips/{tripId} and /api/assistant/users/{userId}"
+      title="AI travel guide"
+      subtitle="Ask about the exact area you selected. This page is now a focused live chat helper."
     >
       <section className="form-grid">
-        <form className="form-card" onSubmit={submit}>
+        <section className="form-card assistant-chat-shell">
+          <div className="assistant-chat-hero">
+            <div>
+              <p className="landing-kicker">Live AI guide</p>
+              <h2>{intent.areaName || intent.destination || 'Ask about any destination'}</h2>
+              <p className="support-text">
+                {intent.areaName
+                  ? `Focused on ${intent.areaName} inside ${intent.destination || 'your selected destination'}.`
+                  : intent.destination
+                    ? `Ask about ${intent.destination}, nearby options, budget tradeoffs, and where to start.`
+                    : 'Open this from a place card to carry area context in automatically, or type a destination below.'}
+              </p>
+            </div>
+            <div className="actions-row">
+              <button type="button" className="ghost-btn" onClick={useCurrentLocation}>
+                Use my current location
+              </button>
+            </div>
+          </div>
           <div className="form-grid form-grid-2">
-            <InputField
-              label="User ID"
-              type="number"
-              min="1"
-              value={intent.userId}
-              onChange={(e) => setIntentField('userId', e.target.value)}
-              readOnly={Boolean(currentUser?.id)}
-              required
-            />
-            <InputField
-              label="Trip ID (optional)"
-              type="number"
-              min="1"
-              value={intent.tripId}
-              onChange={(e) => setIntentField('tripId', e.target.value)}
-            />
+            {!currentUser?.id ? (
+              <InputField
+                label="User ID"
+                type="number"
+                min="1"
+                value={intent.userId}
+                onChange={(e) => setIntentField('userId', e.target.value)}
+                required
+              />
+            ) : null}
             <InputField
               label="Destination"
               value={intent.destination}
               onChange={(e) => setIntentField('destination', e.target.value)}
+              placeholder="Ask about a city, area, or destination"
               required
+            />
+            <InputField
+              label="Focus area"
+              value={intent.areaName}
+              onChange={(e) => setIntentField('areaName', e.target.value)}
+              placeholder="Neighborhood or selected area"
             />
             <FormField label="Vibe">
               <select value={intent.vibe} onChange={(e) => setIntentField('vibe', e.target.value)}>
@@ -1541,211 +1638,69 @@ function AssistantPage() {
                 <option value="social">Social</option>
               </select>
             </FormField>
-            <InputField
-              label="Budget"
-              type="number"
-              min="0"
-              value={intent.budget}
-              onChange={(e) => setIntentField('budget', e.target.value)}
-              required
-            />
-            <InputField
-              label="Nights"
-              type="number"
-              min="1"
-              value={intent.days}
-              onChange={(e) => setIntentField('days', e.target.value)}
-              required
-            />
-            <InputField
-              label="Travelers"
-              type="number"
-              min="1"
-              value={intent.people}
-              onChange={(e) => setIntentField('people', e.target.value)}
-              required
-            />
-            <InputField
-              label="Origin"
-              value={intent.origin}
-              onChange={(e) => setIntentField('origin', e.target.value)}
-              placeholder="Current location or city"
-            />
-            <div className="form-grid assistant-location-field">
-              <button type="button" className="ghost-btn" onClick={useCurrentLocation}>
-                Use my current location
-              </button>
-              {locationError ? <p className="login-error">{locationError}</p> : null}
-            </div>
-            <InputField
-              label="Latitude (optional)"
-              value={intent.latitude}
-              onChange={(e) => setIntentField('latitude', e.target.value)}
-            />
-            <InputField
-              label="Longitude (optional)"
-              value={intent.longitude}
-              onChange={(e) => setIntentField('longitude', e.target.value)}
-            />
-            <FormField label="Dietary preference">
-              <select value={intent.dietaryPreference} onChange={(e) => setIntentField('dietaryPreference', e.target.value)}>
-                <option value="Not specified">Not specified</option>
-                <option value="Vegan">Vegan</option>
-                <option value="Lactose Intolerant">Lactose Intolerant</option>
-                <option value="MeatLover">MeatLover</option>
-              </select>
-            </FormField>
-            <FormField label="Personality">
-              <select value={intent.personalityType} onChange={(e) => setIntentField('personalityType', e.target.value)}>
-                <option value="Not specified">Not specified</option>
-                <option value="Extrovert">Extrovert</option>
-                <option value="Ambivert">Ambivert</option>
-                <option value="Introvert">Introvert</option>
-              </select>
-            </FormField>
-            <FormField label="Trip category">
-              <select value={intent.tripCategory} onChange={(e) => setIntentField('tripCategory', e.target.value)}>
-                <option value="Not specified">Not specified</option>
-                <option value="Romantic">Romantic</option>
-                <option value="Family">Family</option>
-                <option value="Friends">Friends</option>
-              </select>
-            </FormField>
-            <FormField label="Lactose intolerant">
-              <select value={intent.lactoseIntolerant} onChange={(e) => setIntentField('lactoseIntolerant', e.target.value)}>
-                <option value="">Not specified</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </FormField>
-            <FormField label="Drinks alcohol">
-              <select value={intent.drinksAlcohol} onChange={(e) => setIntentField('drinksAlcohol', e.target.value)}>
-                <option value="">Not specified</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </FormField>
-            <FormField label="Smokes">
-              <select value={intent.smokes} onChange={(e) => setIntentField('smokes', e.target.value)}>
-                <option value="">Not specified</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </FormField>
           </div>
-          <p className="support-text">
-            We preload onboarding preferences from your profile and let you override them per request.
-          </p>
+          {locationError ? <p className="login-error">{locationError}</p> : null}
           {currentUser?.id ? <p className="support-text">Using logged-in account: {currentUser.email}</p> : null}
-          <label>
-            Prompt
-            <textarea rows="4" value={intent.prompt} onChange={(e) => setIntentField('prompt', e.target.value)} required />
-          </label>
-          <SubmitButton status={assistantAction.status} loadingText="Building..." idleText="Build plan" />
-        </form>
-
-        {latestPlan?.steps?.length ? (
-          <section className="journey-layout assistant-journey-layout">
-            <div className="journey-left">
-              <FadeContent>
-                <p className="landing-kicker">Plan Brief</p>
-                <h2>Welcome, Traveler.</h2>
-                <p>{latestPlan.summary}</p>
-                {latestPlan.steps[0]?.description ? (
-                  <p>
-                    Featured stop: <strong>{latestPlan.steps[0].description}</strong>
-                  </p>
-                ) : null}
-              </FadeContent>
-            </div>
-
-            <div
-              className="journey-right assistant-journey-right"
-              style={{
-                '--journey-image':
-                  "url('https://images.unsplash.com/photo-1477414348463-c0eb7f1359b6?auto=format&fit=crop&w=1400&q=80')",
-              }}
-            >
-              <AssistantStepList steps={latestPlan.steps} />
-            </div>
-          </section>
-        ) : (
-          <ApiResult status={assistantAction.status} data={assistantAction.data} error={assistantAction.error} />
-        )}
-
-        <section className="form-card">
-          <p className="support-text">Pull live destination photos and current events for this destination.</p>
-          <div className="actions-row">
-            <button type="button" onClick={() => photoAction.run()} disabled={photoAction.status === 'loading'}>
-              {photoAction.status === 'loading' ? 'Loading photos...' : 'Load destination photos'}
-            </button>
-            <button type="button" onClick={() => eventsAction.run()} disabled={eventsAction.status === 'loading'}>
-              {eventsAction.status === 'loading' ? 'Loading events...' : 'Load live events'}
-            </button>
-          </div>
-          {photoAction.status === 'success' && Array.isArray(photoAction.data?.photoUrls) && photoAction.data.photoUrls.length ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
-              {photoAction.data.photoUrls.map((url, index) => (
-                <img
-                  key={`${url}-${index}`}
-                  src={url}
-                  alt={`${intent.destination} preview ${index + 1}`}
-                  style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '14px' }}
-                />
-              ))}
-            </div>
-          ) : null}
-          {photoAction.status === 'error' ? <ApiResult status={photoAction.status} data={photoAction.data} error={photoAction.error} /> : null}
-          {eventsAction.status === 'success' && Array.isArray(eventsAction.data) ? (
-            <div style={{ display: 'grid', gap: '0.75rem' }}>
-              {eventsAction.data.length ? (
-                eventsAction.data.map((eventItem) => (
-                  <article
-                    key={eventItem.id || eventItem.name}
-                    style={{
-                      border: '1px solid rgba(15, 23, 42, 0.12)',
-                      borderRadius: '16px',
-                      padding: '0.9rem',
-                      display: 'grid',
-                      gap: '0.4rem',
-                    }}
-                  >
-                    <strong>{eventItem.name}</strong>
-                    <span>{eventItem.venueName || eventItem.city}</span>
-                    <span>{eventItem.startDateTime || 'Date TBD'}</span>
-                    {eventItem.minPrice ? (
-                      <span>
-                        From {eventItem.minPrice} {eventItem.currency || ''}
-                      </span>
-                    ) : (
-                      <span>Price not published</span>
-                    )}
-                    {eventItem.ticketUrl ? (
-                      <a href={eventItem.ticketUrl} target="_blank" rel="noreferrer">
-                        View tickets
-                      </a>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                <p className="support-text">No live events returned for this destination.</p>
-              )}
-            </div>
-          ) : null}
-          {eventsAction.status === 'error' ? <ApiResult status={eventsAction.status} data={eventsAction.data} error={eventsAction.error} /> : null}
         </section>
 
-        <section className="form-card">
-          <p className="support-text">Load the assistant plans already saved for this trip or user.</p>
-          <div className="actions-row">
-            <button type="button" onClick={loadSavedByTrip} disabled={historyStatus === 'loading'}>
-              {historyStatus === 'loading' ? 'Loading...' : 'Load saved by trip'}
-            </button>
-            <button type="button" onClick={loadSavedByUser} disabled={historyStatus === 'loading'}>
-              {historyStatus === 'loading' ? 'Loading...' : 'Load saved by user'}
-            </button>
+        <section className="form-card assistant-chat-shell">
+          <p className="support-text">
+            Ask direct questions about {intent.areaName || intent.destination}. The assistant will answer in normal
+            language instead of returning a fixed JSON plan.
+          </p>
+          <div
+            style={{
+              display: 'grid',
+              gap: '0.75rem',
+              maxHeight: '340px',
+              overflowY: 'auto',
+              padding: '0.25rem',
+            }}
+          >
+            {chatMessages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                style={{
+                  justifySelf: message.role === 'user' ? 'end' : 'start',
+                  maxWidth: '92%',
+                  padding: '0.8rem 0.95rem',
+                  borderRadius: '16px',
+                  background:
+                    message.role === 'user' ? 'rgba(12, 74, 110, 0.92)' : 'rgba(248, 250, 252, 0.94)',
+                  color: message.role === 'user' ? '#f8fafc' : '#0f172a',
+                  border:
+                    message.role === 'user'
+                      ? '1px solid rgba(186, 230, 253, 0.2)'
+                      : '1px solid rgba(15, 23, 42, 0.08)',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {message.text}
+              </div>
+            ))}
+            {chatAction.status === 'loading' ? <p className="support-text">AI is replying...</p> : null}
           </div>
-          <ApiResult status={historyStatus} data={historyData} error={historyError} />
+          <form onSubmit={submitChat} style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+            <label>
+              Ask about this area
+              <textarea
+                rows="3"
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                placeholder={
+                  intent.areaName
+                    ? `Ask about ${intent.areaName}, nearby options, timing, or budget tradeoffs`
+                    : `Ask about ${intent.destination}, nearby options, timing, or budget tradeoffs`
+                }
+                required
+              />
+            </label>
+            <button type="submit" disabled={chatAction.status === 'loading'}>
+              {chatAction.status === 'loading' ? 'Thinking...' : 'Ask AI'}
+            </button>
+          </form>
+          {chatAction.status === 'error' ? <p className="login-error">{chatAction.error}</p> : null}
         </section>
       </section>
     </AppShell>

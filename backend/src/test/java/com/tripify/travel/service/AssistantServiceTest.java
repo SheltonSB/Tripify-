@@ -88,7 +88,7 @@ class AssistantServiceTest {
         when(weatherServicePort.getCurrentWeather("Chicago"))
             .thenReturn(new WeatherSnapshot("Chicago", "Clear", 21, false));
         when(placesServicePort.findActivities("Chicago", "foodie", null, null))
-            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null)));
+            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null, null, null)));
         when(assistantServicePort.buildPlan(any(AssistantPlanRequest.class))).thenReturn(aiResponse);
         when(assistantPlanRepository.save(any(AssistantPlan.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -170,7 +170,7 @@ class AssistantServiceTest {
         when(weatherServicePort.getCurrentWeather("Chicago"))
             .thenReturn(new WeatherSnapshot("Chicago", "Clear", 21, false));
         when(placesServicePort.findActivities("Chicago", "foodie", null, null))
-            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null)));
+            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null, null, null)));
 
         AssistantPlanResponse aiResponse = new AssistantPlanResponse(
             "Chicago",

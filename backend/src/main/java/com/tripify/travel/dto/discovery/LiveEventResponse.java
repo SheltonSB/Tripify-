@@ -9,5 +9,6 @@ public record LiveEventResponse(
     String imageUrl,
     String ticketUrl,
     Double minPrice,
-    String currency) {
+    String currency,
+    Double distanceMeters) {
 }

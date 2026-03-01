@@ -1,5 +1,7 @@
 package com.tripify.travel.service;
 
+import com.tripify.travel.dto.assistant.AssistantChatRequest;
+import com.tripify.travel.dto.assistant.AssistantChatResponse;
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
 import com.tripify.travel.dto.assistant.RecommendedPlace;
@@ -110,6 +112,38 @@ public class AssistantService {
         return assistantPlanRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
             .map(StoredAssistantPlanResponse::fromEntity)
             .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AssistantChatResponse chat(AssistantChatRequest request) {
+        if (request == null || request.message() == null || request.message().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chat message is required");
+        }
+        if (request.destination() == null || request.destination().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Destination is required");
+        }
+
+        String destination = request.destination().trim();
+        String defaultVibe = hasText(request.vibe()) ? request.vibe().trim() : "balanced";
+
+        String resolvedVibe = defaultVibe;
+        if (request.userId() != null && !hasText(request.vibe())) {
+            resolvedVibe = userRepository.findById(request.userId())
+                .map(this::inferVibeFromProfile)
+                .filter(this::hasText)
+                .orElse(defaultVibe);
+        }
+
+        String areaName = hasText(request.areaName()) ? request.areaName().trim() : "";
+
+        return assistantServicePort.chat(new AssistantChatRequest(
+            request.userId(),
+            destination,
+            areaName,
+            request.message().trim(),
+            resolvedVibe,
+            request.latitude(),
+            request.longitude()));
     }
 
     private void validateRequest(AssistantPlanRequest request) {
