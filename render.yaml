@@ -1,0 +1,72 @@
+databases:
+  - name: tripify-postgres
+    databaseName: travel
+    user: app
+
+services:
+  - type: pserv
+    name: tripify-ai
+    runtime: docker
+    rootDir: ai-service
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: TRIPIFY_OLLAMA_BASE_URL
+        sync: false
+      - key: TRIPIFY_LLM_MODEL
+        value: llama3.2:3b
+      - key: TRIPIFY_LLM_TIMEOUT_SECONDS
+        value: "60"
+
+  - type: web
+    name: tripify-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: DB_HOST
+        fromDatabase:
+          name: tripify-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: tripify-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: tripify-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: tripify-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: tripify-postgres
+          property: password
+      - key: TRIPIFY_AI_BASE_URL
+        value: http://tripify-ai:8001
+      - key: TRIPIFY_AMADEUS_CLIENT_ID
+        sync: false
+      - key: TRIPIFY_AMADEUS_CLIENT_SECRET
+        sync: false
+      - key: TRIPIFY_OPENWEATHER_API_KEY
+        sync: false
+      - key: TRIPIFY_GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: TRIPIFY_TICKETMASTER_API_KEY
+        sync: false
+      - key: TRIPIFY_YELP_API_KEY
+        sync: false
+      - key: TRIPIFY_PROVIDERS_AMADEUS_BASE_URL
+        value: https://test.api.amadeus.com
+      - key: TRIPIFY_PROVIDERS_OPENWEATHER_BASE_URL
+        value: https://api.weatherapi.com
+      - key: TRIPIFY_PROVIDERS_GOOGLE_PLACES_BASE_URL
+        value: https://places.googleapis.com
+      - key: TRIPIFY_PROVIDERS_TICKETMASTER_BASE_URL
+        value: https://app.ticketmaster.com
+      - key: TRIPIFY_PROVIDERS_YELP_BASE_URL
+        value: https://api.yelp.com
