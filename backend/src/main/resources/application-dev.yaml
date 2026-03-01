@@ -1,0 +1,14 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+tripify:
+  ai:
+    base-url: ${TRIPIFY_AI_BASE_URL:http://localhost:8001}

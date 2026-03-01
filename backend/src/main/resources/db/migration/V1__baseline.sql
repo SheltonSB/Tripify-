@@ -1,0 +1,2 @@
+-- Baseline migration placeholder.
+-- Future schema changes should be added as immutable versioned migrations.
