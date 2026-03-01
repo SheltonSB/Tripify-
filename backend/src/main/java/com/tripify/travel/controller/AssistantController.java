@@ -2,9 +2,13 @@ package com.tripify.travel.controller;
 
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
+import com.tripify.travel.dto.assistant.StoredAssistantPlanResponse;
+import java.util.List;
 import com.tripify.travel.service.AssistantService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,5 +28,15 @@ public class AssistantController {
     @PostMapping("/plan")
     public ResponseEntity<AssistantPlanResponse> buildPlan(@RequestBody AssistantPlanRequest request) {
         return ResponseEntity.ok(assistantService.buildPlan(request));
+    }
+
+    @GetMapping("/trips/{tripId}")
+    public ResponseEntity<List<StoredAssistantPlanResponse>> getPlansForTrip(@PathVariable Long tripId) {
+        return ResponseEntity.ok(assistantService.getPlansForTrip(tripId));
+    }
+
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<List<StoredAssistantPlanResponse>> getPlansForUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(assistantService.getPlansForUser(userId));
     }
 }
