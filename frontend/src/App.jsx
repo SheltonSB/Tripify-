@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Route, Routes, useParams } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   buildAssistantPlan,
   confirmTrip,
@@ -12,101 +12,304 @@ import {
   updatePreferences,
 } from './lib/api'
 
-function PageShell({ title, subtitle, children }) {
+function AppShell({ title, subtitle, children }) {
   return (
-    <main className="page-shell">
-      <section className="panel">
-        <header className="panel-header">
-          <span className="eyebrow">Tripify</span>
-          <h1>{title}</h1>
-          {subtitle && <p>{subtitle}</p>}
-        </header>
-        <nav className="top-nav">
-          <Link to="/">Home</Link>
-          <Link to="/signup">Signup</Link>
-          <Link to="/login">Login</Link>
-          <Link to="/trips/generate">Plan Trip</Link>
-          <Link to="/assistant">AI Planner</Link>
-          <Link to="/health">Health</Link>
-        </nav>
-        {children}
-      </section>
-    </main>
-  )
-}
+    <div className="app-root">
+      <header className="global-top">
+        <p>Member prices available now. Build your trip and save more.</p>
+      </header>
 
-function ResultBox({ status, data, error }) {
-  return (
-    <div className="response-box">
-      {status === 'success' && <pre>{JSON.stringify(data, null, 2)}</pre>}
-      {status === 'error' && <pre>{error}</pre>}
-      {(status === 'idle' || status === 'loading') && <pre>No response yet.</pre>}
+      <div className="page-wrap">
+        <header className="main-header">
+          <Link to="/" className="brand">
+            <span className="brand-badge">T</span>
+            <div>
+              <strong>Tripify</strong>
+              <small>Travel made simple</small>
+            </div>
+          </Link>
+
+          <nav className="main-nav">
+            <Link to="/trips/generate">Stays</Link>
+            <Link to="/assistant">Packages</Link>
+            <Link to="/health">Health</Link>
+          </nav>
+
+          <div className="header-actions">
+            <Link className="ghost-btn" to="/signup">
+              Create account
+            </Link>
+            <Link className="solid-btn" to="/login">
+              Sign in
+            </Link>
+          </div>
+        </header>
+
+        <main className="surface">
+          <section className="page-heading">
+            <h1>{title}</h1>
+            {subtitle && <p>{subtitle}</p>}
+          </section>
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
 
-function HomePage() {
+function ApiResult({ status, data, error }) {
+  const message =
+    status === 'success'
+      ? JSON.stringify(data, null, 2)
+      : status === 'error'
+        ? error
+        : status === 'loading'
+          ? 'Request in progress...'
+          : 'Run an action to see API output.'
+
   return (
-    <PageShell
-      title="Frontend Contract Flow"
-      subtitle="Build against controller routes now while backend upgrades internals behind stable endpoints."
-    >
-      <div className="grid">
-        <article className="tile">
-          <h2>1. Auth</h2>
-          <p>Signup and login workflows wired to `/api/auth` routes.</p>
-          <Link className="tile-link" to="/signup">
-            Open signup
-          </Link>
-        </article>
-        <article className="tile">
-          <h2>2. User Profile</h2>
-          <p>Load user details from `/api/users/{'{userId}'}`.</p>
-          <Link className="tile-link" to="/users/1">
-            Open sample profile
-          </Link>
-        </article>
-        <article className="tile">
-          <h2>3. Preferences</h2>
-          <p>Submit preferences updates to `/api/users/{'{userId}'}/preferences`.</p>
-          <Link className="tile-link" to="/preferences/1">
-            Open sample preferences
-          </Link>
-        </article>
-        <article className="tile">
-          <h2>4. Trips</h2>
-          <p>Generate, fetch, and confirm trip flows using `/api/trips` routes.</p>
-          <Link className="tile-link" to="/trips/generate">
-            Open trip planner
-          </Link>
-        </article>
-        <article className="tile">
-          <h2>5. AI Planner</h2>
-          <p>Send planning requests to `/api/assistant/plan` through the Java backend.</p>
-          <Link className="tile-link" to="/assistant">
-            Open AI planner
-          </Link>
-        </article>
+    <section className="result-card">
+      <div className="result-head">
+        <span className={`status-pill status-${status}`}>{status}</span>
       </div>
-    </PageShell>
+      <pre>{message}</pre>
+    </section>
   )
 }
 
-function SignupPage() {
+function FormField({ label, children }) {
+  return (
+    <label>
+      {label}
+      {children}
+    </label>
+  )
+}
+
+function InputField({ label, ...props }) {
+  return (
+    <FormField label={label}>
+      <input {...props} />
+    </FormField>
+  )
+}
+
+function SubmitButton({ status, idleText, loadingText }) {
+  return (
+    <button type="submit" disabled={status === 'loading'}>
+      {status === 'loading' ? loadingText : idleText}
+    </button>
+  )
+}
+
+function DestinationCard({ city, note }) {
+  return (
+    <article className="destination-card">
+      <h4>{city}</h4>
+      <p>{note}</p>
+    </article>
+  )
+}
+
+function ResumeStayCard() {
+  return (
+    <article className="resume-stay-card">
+      <img
+        src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80"
+        alt="Stay room"
+      />
+      <div className="resume-stay-body">
+        <h3>37 Lodge La Defense Courbevoie</h3>
+        <p>Courbevoie</p>
+        <p>Sat, Mar 14 - Tue, Mar 17</p>
+        <p>1 traveler, 1 room</p>
+        <p className="rating-line">
+          <span>8.2</span> Very good (253 reviews)
+        </p>
+        <button type="button" className="ghost-btn">
+          Choose a room
+        </button>
+      </div>
+    </article>
+  )
+}
+
+function ContinueSearchCard() {
+  return (
+    <article className="resume-search-card">
+      <div className="search-icon">⌕</div>
+      <p>Continue your search for stays in Courbevoie</p>
+    </article>
+  )
+}
+
+function DealCard({ title, detail, image }) {
+  return (
+    <article className="deal-card">
+      <img src={image} alt={title} />
+      <div className="deal-overlay">
+        <strong>{title}</strong>
+        <span>{detail}</span>
+      </div>
+    </article>
+  )
+}
+
+function HomePage() {
+  const navigate = useNavigate()
+  const [location, setLocation] = useState('Chicago')
+  const [budget, setBudget] = useState('1500')
+  const [people, setPeople] = useState('2')
+  const [days, setDays] = useState('3')
+
+  const handleSearch = (event) => {
+    event.preventDefault()
+    const query = new URLSearchParams({ location, budget, people, days, userId: '1' })
+    navigate(`/trips/generate?${query.toString()}`)
+  }
+
+  return (
+    <AppShell
+      title="Explore, save, and book with confidence"
+      subtitle="Live frontend connected to your auth, profile, trip, assistant, and health backend routes."
+    >
+      <section className="resume-panel">
+        <h2>Here&apos;s where you left off</h2>
+        <div className="resume-grid">
+          <ResumeStayCard />
+          <ContinueSearchCard />
+        </div>
+      </section>
+
+      <section className="hero-card">
+        <div className="hero-media">
+          <span>Find your perfect stay and build your trip in minutes</span>
+        </div>
+        <form className="search-module" onSubmit={handleSearch}>
+          <div className="trip-tabs">
+            <button type="button" className="tab-active">
+              Stays
+            </button>
+            <button type="button">Flights</button>
+            <button type="button">Packages</button>
+          </div>
+
+          <div className="form-grid form-grid-2">
+            <InputField label="Destination" value={location} onChange={(e) => setLocation(e.target.value)} required />
+            <InputField
+              label="Budget (USD)"
+              type="number"
+              min="0"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              required
+            />
+            <InputField
+              label="Travelers"
+              type="number"
+              min="1"
+              value={people}
+              onChange={(e) => setPeople(e.target.value)}
+              required
+            />
+            <InputField label="Nights" type="number" min="1" value={days} onChange={(e) => setDays(e.target.value)} required />
+          </div>
+
+          <button type="submit" className="search-btn">
+            Search trips
+          </button>
+        </form>
+      </section>
+
+      <section className="cards-row">
+        <article className="promo-card card-one">
+          <h3>Plan with AI Assistant</h3>
+          <p>Get a structured itinerary draft and compare your options before confirming.</p>
+          <Link to="/assistant">Open assistant</Link>
+        </article>
+        <article className="promo-card card-two">
+          <h3>Manage travel profile</h3>
+          <p>Load user profile and update dietary preferences for better recommendations.</p>
+          <div className="inline-links">
+            <Link to="/users/1">User profile</Link>
+            <Link to="/preferences/1">Preferences</Link>
+          </div>
+        </article>
+        <article className="promo-card card-three">
+          <h3>Book-ready workflow</h3>
+          <p>Generate a trip, review details, then confirm via the existing backend contract.</p>
+          <div className="inline-links">
+            <Link to="/trips/generate">Generate</Link>
+            <Link to="/trips/1">Trip detail</Link>
+          </div>
+        </article>
+      </section>
+
+      <section className="deals-section">
+        <div className="deals-head">
+          <div>
+            <h2>Members save up to 40% on select stays</h2>
+            <p>Showing deals for Mar 20 - Mar 22</p>
+          </div>
+          <button type="button" className="ghost-btn">
+            See more deals
+          </button>
+        </div>
+
+        <div className="deals-grid">
+          <DealCard
+            title="Arlo SoHo"
+            detail="VIP Access · New York"
+            image="https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=900&q=80"
+          />
+          <DealCard
+            title="Midtown Skyline"
+            detail="Manhattan views"
+            image="https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=900&q=80"
+          />
+          <DealCard
+            title="Modern Dining Hotel"
+            detail="City center"
+            image="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=900&q=80"
+          />
+          <DealCard
+            title="Sonesta Suites"
+            detail="Great value"
+            image="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80"
+          />
+        </div>
+      </section>
+
+      <section className="destination-strip">
+        <h2>Popular this week</h2>
+        <div className="destination-grid">
+          <DestinationCard city="Barcelona" note="Tapas, beaches, and budget stays" />
+          <DestinationCard city="Tokyo" note="Efficient travel with local food tours" />
+          <DestinationCard city="New York" note="City breaks with value itinerary packs" />
+          <DestinationCard city="Mexico City" note="Culture-heavy weekends and street food" />
+        </div>
+      </section>
+    </AppShell>
+  )
+}
+
+function AuthPage({ mode }) {
+  const isSignup = mode === 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState('idle')
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (event) => {
+  const submit = async (event) => {
     event.preventDefault()
     setStatus('loading')
     setError('')
     setData(null)
 
     try {
-      const response = await signup({ email, password })
+      const payload = { email, password }
+      const response = isSignup ? await signup(payload) : await login(payload)
       setData(response)
       setStatus('success')
     } catch (err) {
@@ -116,89 +319,34 @@ function SignupPage() {
   }
 
   return (
-    <PageShell title="Create Account" subtitle="POST /api/auth/signup">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <label htmlFor="signup-email">Email</label>
-        <input
-          id="signup-email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          required
-        />
+    <AppShell
+      title={isSignup ? 'Create your account' : 'Sign in'}
+      subtitle={isSignup ? 'POST /api/auth/signup' : 'POST /api/auth/login'}
+    >
+      <section className="two-col">
+        <form className="form-card" onSubmit={submit}>
+          <InputField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <InputField
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <SubmitButton
+            status={status}
+            loadingText="Submitting..."
+            idleText={isSignup ? 'Create account' : 'Sign in'}
+          />
+          <p className="support-text">
+            {isSignup ? 'Already have an account?' : 'Need an account?'}{' '}
+            <Link to={isSignup ? '/login' : '/signup'}>{isSignup ? 'Sign in' : 'Create one'}</Link>
+          </p>
+        </form>
 
-        <label htmlFor="signup-password">Password</label>
-        <input
-          id="signup-password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Create a password"
-          required
-        />
-
-        <button type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? 'Submitting...' : 'Sign up'}
-        </button>
-      </form>
-      <ResultBox status={status} data={data} error={error} />
-    </PageShell>
-  )
-}
-
-function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await login({ email, password })
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
-  }
-
-  return (
-    <PageShell title="Welcome Back" subtitle="POST /api/auth/login">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <label htmlFor="login-email">Email address</label>
-        <input
-          id="login-email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-          required
-        />
-
-        <label htmlFor="login-password">Password</label>
-        <input
-          id="login-password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Enter your password"
-          required
-        />
-
-        <button type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? 'Submitting...' : 'Sign in'}
-        </button>
-      </form>
-      <ResultBox status={status} data={data} error={error} />
-    </PageShell>
+        <ApiResult status={status} data={data} error={error} />
+      </section>
+    </AppShell>
   )
 }
 
@@ -208,7 +356,7 @@ function UserProfilePage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
-  const handleFetchUser = async () => {
+  const loadProfile = async () => {
     setStatus('loading')
     setError('')
     setData(null)
@@ -224,17 +372,22 @@ function UserProfilePage() {
   }
 
   return (
-    <PageShell title="User Profile" subtitle={`GET /api/users/${userId}`}>
-      <div className="stack-row">
-        <button type="button" onClick={handleFetchUser} disabled={status === 'loading'}>
-          {status === 'loading' ? 'Loading...' : 'Fetch user'}
-        </button>
-        <Link className="tile-link" to={`/preferences/${userId}`}>
-          Edit preferences for this user
-        </Link>
-      </div>
-      <ResultBox status={status} data={data} error={error} />
-    </PageShell>
+    <AppShell title="Traveler profile" subtitle={`GET /api/users/${userId}`}>
+      <section className="two-col">
+        <div className="form-card">
+          <p className="support-text">Load profile data and continue to preferences update flow.</p>
+          <div className="actions-row">
+            <button type="button" onClick={loadProfile} disabled={status === 'loading'}>
+              {status === 'loading' ? 'Loading...' : 'Load profile'}
+            </button>
+            <Link to={`/preferences/${userId}`} className="ghost-btn">
+              Edit preferences
+            </Link>
+          </div>
+        </div>
+        <ApiResult status={status} data={data} error={error} />
+      </section>
+    </AppShell>
   )
 }
 
@@ -246,17 +399,14 @@ function PreferencesPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (event) => {
+  const savePreferences = async (event) => {
     event.preventDefault()
     setStatus('loading')
     setError('')
     setData(null)
 
     try {
-      const response = await updatePreferences(userId, {
-        foodPreferences,
-        allergies,
-      })
+      const response = await updatePreferences(userId, { foodPreferences, allergies })
       setData(response)
       setStatus('success')
     } catch (err) {
@@ -266,67 +416,48 @@ function PreferencesPage() {
   }
 
   return (
-    <PageShell title="Preferences" subtitle={`PUT /api/users/${userId}/preferences`}>
-      <form className="login-form" onSubmit={handleSubmit}>
-        <label htmlFor="pref-food">Food preferences</label>
-        <input
-          id="pref-food"
-          type="text"
-          value={foodPreferences}
-          onChange={(event) => setFoodPreferences(event.target.value)}
-          required
-        />
+    <AppShell title="Preferences" subtitle={`PUT /api/users/${userId}/preferences`}>
+      <section className="two-col">
+        <form className="form-card" onSubmit={savePreferences}>
+          <InputField
+            label="Food preferences"
+            value={foodPreferences}
+            onChange={(e) => setFoodPreferences(e.target.value)}
+            required
+          />
+          <InputField label="Allergies" value={allergies} onChange={(e) => setAllergies(e.target.value)} required />
+          <SubmitButton status={status} loadingText="Saving..." idleText="Save preferences" />
+        </form>
 
-        <label htmlFor="pref-allergies">Allergies</label>
-        <input
-          id="pref-allergies"
-          type="text"
-          value={allergies}
-          onChange={(event) => setAllergies(event.target.value)}
-          required
-        />
-
-        <button type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? 'Saving...' : 'Save preferences'}
-        </button>
-      </form>
-      <ResultBox status={status} data={data} error={error} />
-    </PageShell>
+        <ApiResult status={status} data={data} error={error} />
+      </section>
+    </AppShell>
   )
 }
 
 function TripGeneratePage() {
-  const [userId, setUserId] = useState('1')
-  const [location, setLocation] = useState('Tokyo')
-  const [startDate, setStartDate] = useState('2026-03-20')
-  const [endDate, setEndDate] = useState('2026-03-27')
-  const [budget, setBudget] = useState('1200')
-  const [people, setPeople] = useState('2')
+  const [searchParams] = useSearchParams()
+  const [userId, setUserId] = useState(searchParams.get('userId') || '1')
+  const [location, setLocation] = useState(searchParams.get('location') || 'Tokyo')
+  const [budget, setBudget] = useState(searchParams.get('budget') || '1200')
+  const [days, setDays] = useState(searchParams.get('days') || '4')
+  const [people, setPeople] = useState(searchParams.get('people') || '2')
   const [status, setStatus] = useState('idle')
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (event) => {
+  const generate = async (event) => {
     event.preventDefault()
     setStatus('loading')
     setError('')
     setData(null)
-
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    const daySpan = Math.max(
-      1,
-      Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
-        ? 1
-        : Math.ceil((end - start) / (1000 * 60 * 60 * 24))
-    )
 
     try {
       const response = await generateTrip({
         userId: Number(userId),
         location,
         budget: Number(budget),
-        days: daySpan,
+        days: Number(days),
         people: Number(people),
       })
       setData(response)
@@ -338,76 +469,102 @@ function TripGeneratePage() {
   }
 
   return (
-    <PageShell title="Trip Planner" subtitle="POST /api/trips/generate">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <label htmlFor="trip-user">User ID</label>
-        <input
-          id="trip-user"
-          type="number"
-          min="1"
-          value={userId}
-          onChange={(event) => setUserId(event.target.value)}
-          required
-        />
+    <AppShell title="Trip planner" subtitle="POST /api/trips/generate">
+      <section className="two-col">
+        <form className="form-card" onSubmit={generate}>
+          <div className="form-grid form-grid-2">
+            <InputField
+              label="User ID"
+              type="number"
+              min="1"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              required
+            />
+            <InputField label="Destination" value={location} onChange={(e) => setLocation(e.target.value)} required />
+            <InputField
+              label="Budget"
+              type="number"
+              min="0"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              required
+            />
+            <InputField
+              label="Travelers"
+              type="number"
+              min="1"
+              value={people}
+              onChange={(e) => setPeople(e.target.value)}
+              required
+            />
+            <InputField label="Nights" type="number" min="1" value={days} onChange={(e) => setDays(e.target.value)} required />
+          </div>
+          <SubmitButton status={status} loadingText="Generating..." idleText="Generate options" />
+          <p className="support-text">After generation, open `/trips/&#123;tripId&#125;` to fetch and confirm.</p>
+        </form>
 
-        <label htmlFor="trip-destination">Destination</label>
-        <input
-          id="trip-destination"
-          type="text"
-          value={location}
-          onChange={(event) => setLocation(event.target.value)}
-          required
-        />
+        <ApiResult status={status} data={data} error={error} />
+      </section>
+    </AppShell>
+  )
+}
 
-        <label htmlFor="trip-start">Start date</label>
-        <input
-          id="trip-start"
-          type="date"
-          value={startDate}
-          onChange={(event) => setStartDate(event.target.value)}
-          required
-        />
+function TripDetailPage() {
+  const { tripId } = useParams()
+  const [fetchStatus, setFetchStatus] = useState('idle')
+  const [fetchData, setFetchData] = useState(null)
+  const [fetchError, setFetchError] = useState('')
+  const [confirmStatus, setConfirmStatus] = useState('idle')
+  const [confirmData, setConfirmData] = useState(null)
+  const [confirmError, setConfirmError] = useState('')
 
-        <label htmlFor="trip-end">End date</label>
-        <input
-          id="trip-end"
-          type="date"
-          value={endDate}
-          onChange={(event) => setEndDate(event.target.value)}
-          required
-        />
+  const fetchTrip = async () => {
+    setFetchStatus('loading')
+    setFetchError('')
+    setFetchData(null)
 
-        <label htmlFor="trip-budget">Budget</label>
-        <input
-          id="trip-budget"
-          type="number"
-          min="0"
-          value={budget}
-          onChange={(event) => setBudget(event.target.value)}
-          required
-        />
+    try {
+      const response = await getTrip(tripId)
+      setFetchData(response)
+      setFetchStatus('success')
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Unknown error')
+      setFetchStatus('error')
+    }
+  }
 
-        <label htmlFor="trip-people">People</label>
-        <input
-          id="trip-people"
-          type="number"
-          min="1"
-          value={people}
-          onChange={(event) => setPeople(event.target.value)}
-          required
-        />
+  const confirm = async () => {
+    setConfirmStatus('loading')
+    setConfirmError('')
+    setConfirmData(null)
 
-        <button type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? 'Generating...' : 'Generate trip'}
+    try {
+      const response = await confirmTrip(tripId)
+      setConfirmData(response)
+      setConfirmStatus('success')
+    } catch (err) {
+      setConfirmError(err instanceof Error ? err.message : 'Unknown error')
+      setConfirmStatus('error')
+    }
+  }
+
+  return (
+    <AppShell title="Trip detail" subtitle={`GET /api/trips/${tripId} and POST /api/trips/confirm/${tripId}`}>
+      <div className="actions-row">
+        <button type="button" onClick={fetchTrip} disabled={fetchStatus === 'loading'}>
+          {fetchStatus === 'loading' ? 'Loading...' : 'Fetch trip'}
         </button>
-      </form>
-      <p className="hint-text">
-        The backend stores `location`, `budget`, `days`, and `people`. Dates are used here only to derive
-        the trip length for the demo.
-      </p>
-      <ResultBox status={status} data={data} error={error} />
-      <p className="hint-text">If backend returns a trip id, open `/trips/{'{tripId}'}` to fetch and confirm.</p>
-    </PageShell>
+        <button type="button" onClick={confirm} disabled={confirmStatus === 'loading'}>
+          {confirmStatus === 'loading' ? 'Confirming...' : 'Confirm trip'}
+        </button>
+      </div>
+
+      <section className="dual-grid">
+        <ApiResult status={fetchStatus} data={fetchData} error={fetchError} />
+        <ApiResult status={confirmStatus} data={confirmData} error={confirmError} />
+      </section>
+    </AppShell>
   )
 }
 
@@ -417,12 +574,12 @@ function AssistantPage() {
   const [budget, setBudget] = useState('1500')
   const [days, setDays] = useState('3')
   const [people, setPeople] = useState('2')
-  const [prompt, setPrompt] = useState('Plan a budget-friendly food and culture trip.')
+  const [prompt, setPrompt] = useState('Design a value-focused plan with food and local activities.')
   const [status, setStatus] = useState('idle')
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (event) => {
+  const submit = async (event) => {
     event.preventDefault()
     setStatus('loading')
     setError('')
@@ -446,131 +603,52 @@ function AssistantPage() {
   }
 
   return (
-    <PageShell title="AI Planner" subtitle="POST /api/assistant/plan">
-      <form className="login-form" onSubmit={handleSubmit}>
-        <label htmlFor="assistant-user">User ID</label>
-        <input
-          id="assistant-user"
-          type="number"
-          min="1"
-          value={userId}
-          onChange={(event) => setUserId(event.target.value)}
-          required
-        />
+    <AppShell title="AI itinerary assistant" subtitle="POST /api/assistant/plan">
+      <section className="two-col">
+        <form className="form-card" onSubmit={submit}>
+          <div className="form-grid form-grid-2">
+            <InputField
+              label="User ID"
+              type="number"
+              min="1"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              required
+            />
+            <InputField
+              label="Destination"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              required
+            />
+            <InputField
+              label="Budget"
+              type="number"
+              min="0"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              required
+            />
+            <InputField label="Nights" type="number" min="1" value={days} onChange={(e) => setDays(e.target.value)} required />
+            <InputField
+              label="Travelers"
+              type="number"
+              min="1"
+              value={people}
+              onChange={(e) => setPeople(e.target.value)}
+              required
+            />
+          </div>
+          <label>
+            Prompt
+            <textarea rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} required />
+          </label>
+          <SubmitButton status={status} loadingText="Building..." idleText="Build plan" />
+        </form>
 
-        <label htmlFor="assistant-destination">Destination</label>
-        <input
-          id="assistant-destination"
-          type="text"
-          value={destination}
-          onChange={(event) => setDestination(event.target.value)}
-          required
-        />
-
-        <label htmlFor="assistant-budget">Budget</label>
-        <input
-          id="assistant-budget"
-          type="number"
-          min="0"
-          value={budget}
-          onChange={(event) => setBudget(event.target.value)}
-          required
-        />
-
-        <label htmlFor="assistant-days">Days</label>
-        <input
-          id="assistant-days"
-          type="number"
-          min="1"
-          value={days}
-          onChange={(event) => setDays(event.target.value)}
-          required
-        />
-
-        <label htmlFor="assistant-people">People</label>
-        <input
-          id="assistant-people"
-          type="number"
-          min="1"
-          value={people}
-          onChange={(event) => setPeople(event.target.value)}
-          required
-        />
-
-        <label htmlFor="assistant-prompt">Prompt</label>
-        <textarea
-          id="assistant-prompt"
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          rows="4"
-          required
-        />
-
-        <button type="submit" disabled={status === 'loading'}>
-          {status === 'loading' ? 'Planning...' : 'Build plan'}
-        </button>
-      </form>
-      <ResultBox status={status} data={data} error={error} />
-    </PageShell>
-  )
-}
-
-function TripDetailPage() {
-  const { tripId } = useParams()
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
-  const [confirmStatus, setConfirmStatus] = useState('idle')
-  const [confirmData, setConfirmData] = useState(null)
-  const [confirmError, setConfirmError] = useState('')
-
-  const handleFetchTrip = async () => {
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await getTrip(tripId)
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
-  }
-
-  const handleConfirmTrip = async () => {
-    setConfirmStatus('loading')
-    setConfirmError('')
-    setConfirmData(null)
-
-    try {
-      const response = await confirmTrip(tripId, { confirmedBy: 1 })
-      setConfirmData(response)
-      setConfirmStatus('success')
-    } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : 'Unknown error')
-      setConfirmStatus('error')
-    }
-  }
-
-  return (
-    <PageShell title="Trip Detail" subtitle={`GET /api/trips/${tripId} + POST /api/trips/confirm/${tripId}`}>
-      <div className="stack-row">
-        <button type="button" onClick={handleFetchTrip} disabled={status === 'loading'}>
-          {status === 'loading' ? 'Loading...' : 'Fetch trip'}
-        </button>
-        <button type="button" onClick={handleConfirmTrip} disabled={confirmStatus === 'loading'}>
-          {confirmStatus === 'loading' ? 'Confirming...' : 'Confirm trip'}
-        </button>
-      </div>
-
-      <h3>Trip response</h3>
-      <ResultBox status={status} data={data} error={error} />
-
-      <h3>Confirm response</h3>
-      <ResultBox status={confirmStatus} data={confirmData} error={confirmError} />
-    </PageShell>
+        <ApiResult status={status} data={data} error={error} />
+      </section>
+    </AppShell>
   )
 }
 
@@ -579,10 +657,10 @@ function HealthPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
 
-  const handleCheckHealth = async () => {
+  const check = async () => {
     setStatus('loading')
-    setData(null)
     setError('')
+    setData(null)
 
     try {
       const response = await getHealth()
@@ -595,15 +673,14 @@ function HealthPage() {
   }
 
   return (
-    <PageShell title="API Health" subtitle="GET /health">
-      <div className="health-row">
-        <button type="button" onClick={handleCheckHealth} disabled={status === 'loading'}>
+    <AppShell title="Backend health" subtitle="GET /health">
+      <div className="actions-row">
+        <button type="button" onClick={check} disabled={status === 'loading'}>
           {status === 'loading' ? 'Checking...' : 'Check health'}
         </button>
-        <span className={`status-pill status-${status}`}>Status: {status}</span>
       </div>
-      <ResultBox status={status} data={data} error={error} />
-    </PageShell>
+      <ApiResult status={status} data={data} error={error} />
+    </AppShell>
   )
 }
 
@@ -611,14 +688,15 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<AuthPage mode="signup" />} />
+      <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/users/:userId" element={<UserProfilePage />} />
       <Route path="/preferences/:userId" element={<PreferencesPage />} />
       <Route path="/trips/generate" element={<TripGeneratePage />} />
       <Route path="/trips/:tripId" element={<TripDetailPage />} />
       <Route path="/assistant" element={<AssistantPage />} />
       <Route path="/health" element={<HealthPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
