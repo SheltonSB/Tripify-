@@ -12,6 +12,31 @@ import {
   updatePreferences,
 } from './lib/api'
 
+function useApiAction(action) {
+  const [status, setStatus] = useState('idle')
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+
+  const run = async (...args) => {
+    setStatus('loading')
+    setData(null)
+    setError('')
+
+    try {
+      const response = await action(...args)
+      setData(response)
+      setStatus('success')
+      return response
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setStatus('error')
+      return null
+    }
+  }
+
+  return { status, data, error, run }
+}
+
 function AppShell({ title, subtitle, children }) {
   return (
     <div className="app-root">
@@ -287,25 +312,11 @@ function AuthPage({ mode }) {
   const isSignup = mode === 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
+  const authAction = useApiAction((payload) => (isSignup ? signup(payload) : login(payload)))
 
   const submit = async (event) => {
     event.preventDefault()
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const payload = { email, password }
-      const response = isSignup ? await signup(payload) : await login(payload)
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
+    await authAction.run({ email, password })
   }
 
   return (
@@ -324,7 +335,7 @@ function AuthPage({ mode }) {
             required
           />
           <SubmitButton
-            status={status}
+            status={authAction.status}
             loadingText="Submitting..."
             idleText={isSignup ? 'Create account' : 'Sign in'}
           />
@@ -334,7 +345,7 @@ function AuthPage({ mode }) {
           </p>
         </form>
 
-        <ApiResult status={status} data={data} error={error} />
+        <ApiResult status={authAction.status} data={authAction.data} error={authAction.error} />
       </section>
     </AppShell>
   )
@@ -342,24 +353,7 @@ function AuthPage({ mode }) {
 
 function UserProfilePage() {
   const { userId } = useParams()
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
-
-  const loadProfile = async () => {
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await getUser(userId)
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
-  }
+  const profileAction = useApiAction(() => getUser(userId))
 
   return (
     <AppShell title="Traveler profile" subtitle={`GET /api/users/${userId}`}>
@@ -367,15 +361,15 @@ function UserProfilePage() {
         <div className="form-card">
           <p className="support-text">Load profile data and continue to preferences update flow.</p>
           <div className="actions-row">
-            <button type="button" onClick={loadProfile} disabled={status === 'loading'}>
-              {status === 'loading' ? 'Loading...' : 'Load profile'}
+            <button type="button" onClick={() => profileAction.run()} disabled={profileAction.status === 'loading'}>
+              {profileAction.status === 'loading' ? 'Loading...' : 'Load profile'}
             </button>
             <Link to={`/preferences/${userId}`} className="ghost-btn">
               Edit preferences
             </Link>
           </div>
         </div>
-        <ApiResult status={status} data={data} error={error} />
+        <ApiResult status={profileAction.status} data={profileAction.data} error={profileAction.error} />
       </section>
     </AppShell>
   )
@@ -385,24 +379,11 @@ function PreferencesPage() {
   const { userId } = useParams()
   const [foodPreferences, setFoodPreferences] = useState('Vegetarian-friendly')
   const [allergies, setAllergies] = useState('Nuts')
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
+  const preferencesAction = useApiAction((payload) => updatePreferences(userId, payload))
 
   const savePreferences = async (event) => {
     event.preventDefault()
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await updatePreferences(userId, { foodPreferences, allergies })
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
+    await preferencesAction.run({ foodPreferences, allergies })
   }
 
   return (
@@ -416,10 +397,14 @@ function PreferencesPage() {
             required
           />
           <InputField label="Allergies" value={allergies} onChange={(e) => setAllergies(e.target.value)} required />
-          <SubmitButton status={status} loadingText="Saving..." idleText="Save preferences" />
+          <SubmitButton status={preferencesAction.status} loadingText="Saving..." idleText="Save preferences" />
         </form>
 
-        <ApiResult status={status} data={data} error={error} />
+        <ApiResult
+          status={preferencesAction.status}
+          data={preferencesAction.data}
+          error={preferencesAction.error}
+        />
       </section>
     </AppShell>
   )
@@ -432,30 +417,17 @@ function TripGeneratePage() {
   const [budget, setBudget] = useState(searchParams.get('budget') || '1200')
   const [days, setDays] = useState(searchParams.get('days') || '4')
   const [people, setPeople] = useState(searchParams.get('people') || '2')
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
+  const tripGenerateAction = useApiAction((payload) => generateTrip(payload))
 
   const generate = async (event) => {
     event.preventDefault()
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await generateTrip({
-        userId: Number(userId),
-        location,
-        budget: Number(budget),
-        days: Number(days),
-        people: Number(people),
-      })
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
+    await tripGenerateAction.run({
+      userId: Number(userId),
+      location,
+      budget: Number(budget),
+      days: Number(days),
+      people: Number(people),
+    })
   }
 
   return (
@@ -490,11 +462,15 @@ function TripGeneratePage() {
             />
             <InputField label="Nights" type="number" min="1" value={days} onChange={(e) => setDays(e.target.value)} required />
           </div>
-          <SubmitButton status={status} loadingText="Generating..." idleText="Generate options" />
+          <SubmitButton status={tripGenerateAction.status} loadingText="Generating..." idleText="Generate options" />
           <p className="support-text">After generation, open `/trips/&#123;tripId&#125;` to fetch and confirm.</p>
         </form>
 
-        <ApiResult status={status} data={data} error={error} />
+        <ApiResult
+          status={tripGenerateAction.status}
+          data={tripGenerateAction.data}
+          error={tripGenerateAction.error}
+        />
       </section>
     </AppShell>
   )
@@ -502,57 +478,23 @@ function TripGeneratePage() {
 
 function TripDetailPage() {
   const { tripId } = useParams()
-  const [fetchStatus, setFetchStatus] = useState('idle')
-  const [fetchData, setFetchData] = useState(null)
-  const [fetchError, setFetchError] = useState('')
-  const [confirmStatus, setConfirmStatus] = useState('idle')
-  const [confirmData, setConfirmData] = useState(null)
-  const [confirmError, setConfirmError] = useState('')
-
-  const fetchTrip = async () => {
-    setFetchStatus('loading')
-    setFetchError('')
-    setFetchData(null)
-
-    try {
-      const response = await getTrip(tripId)
-      setFetchData(response)
-      setFetchStatus('success')
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Unknown error')
-      setFetchStatus('error')
-    }
-  }
-
-  const confirm = async () => {
-    setConfirmStatus('loading')
-    setConfirmError('')
-    setConfirmData(null)
-
-    try {
-      const response = await confirmTrip(tripId)
-      setConfirmData(response)
-      setConfirmStatus('success')
-    } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : 'Unknown error')
-      setConfirmStatus('error')
-    }
-  }
+  const fetchTripAction = useApiAction(() => getTrip(tripId))
+  const confirmTripAction = useApiAction(() => confirmTrip(tripId))
 
   return (
     <AppShell title="Trip detail" subtitle={`GET /api/trips/${tripId} and POST /api/trips/confirm/${tripId}`}>
       <div className="actions-row">
-        <button type="button" onClick={fetchTrip} disabled={fetchStatus === 'loading'}>
-          {fetchStatus === 'loading' ? 'Loading...' : 'Fetch trip'}
+        <button type="button" onClick={() => fetchTripAction.run()} disabled={fetchTripAction.status === 'loading'}>
+          {fetchTripAction.status === 'loading' ? 'Loading...' : 'Fetch trip'}
         </button>
-        <button type="button" onClick={confirm} disabled={confirmStatus === 'loading'}>
-          {confirmStatus === 'loading' ? 'Confirming...' : 'Confirm trip'}
+        <button type="button" onClick={() => confirmTripAction.run()} disabled={confirmTripAction.status === 'loading'}>
+          {confirmTripAction.status === 'loading' ? 'Confirming...' : 'Confirm trip'}
         </button>
       </div>
 
       <section className="dual-grid">
-        <ApiResult status={fetchStatus} data={fetchData} error={fetchError} />
-        <ApiResult status={confirmStatus} data={confirmData} error={confirmError} />
+        <ApiResult status={fetchTripAction.status} data={fetchTripAction.data} error={fetchTripAction.error} />
+        <ApiResult status={confirmTripAction.status} data={confirmTripAction.data} error={confirmTripAction.error} />
       </section>
     </AppShell>
   )
@@ -565,31 +507,18 @@ function AssistantPage() {
   const [days, setDays] = useState('3')
   const [people, setPeople] = useState('2')
   const [prompt, setPrompt] = useState('Design a value-focused plan with food and local activities.')
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
+  const assistantAction = useApiAction((payload) => buildAssistantPlan(payload))
 
   const submit = async (event) => {
     event.preventDefault()
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await buildAssistantPlan({
-        userId: Number(userId),
-        destination,
-        budget: Number(budget),
-        days: Number(days),
-        people: Number(people),
-        prompt,
-      })
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
+    await assistantAction.run({
+      userId: Number(userId),
+      destination,
+      budget: Number(budget),
+      days: Number(days),
+      people: Number(people),
+      prompt,
+    })
   }
 
   return (
@@ -633,43 +562,26 @@ function AssistantPage() {
             Prompt
             <textarea rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} required />
           </label>
-          <SubmitButton status={status} loadingText="Building..." idleText="Build plan" />
+          <SubmitButton status={assistantAction.status} loadingText="Building..." idleText="Build plan" />
         </form>
 
-        <ApiResult status={status} data={data} error={error} />
+        <ApiResult status={assistantAction.status} data={assistantAction.data} error={assistantAction.error} />
       </section>
     </AppShell>
   )
 }
 
 function HealthPage() {
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
-
-  const check = async () => {
-    setStatus('loading')
-    setError('')
-    setData(null)
-
-    try {
-      const response = await getHealth()
-      setData(response)
-      setStatus('success')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setStatus('error')
-    }
-  }
+  const healthAction = useApiAction(() => getHealth())
 
   return (
     <AppShell title="Backend health" subtitle="GET /health">
       <div className="actions-row">
-        <button type="button" onClick={check} disabled={status === 'loading'}>
-          {status === 'loading' ? 'Checking...' : 'Check health'}
+        <button type="button" onClick={() => healthAction.run()} disabled={healthAction.status === 'loading'}>
+          {healthAction.status === 'loading' ? 'Checking...' : 'Check health'}
         </button>
       </div>
-      <ApiResult status={status} data={data} error={error} />
+      <ApiResult status={healthAction.status} data={healthAction.data} error={healthAction.error} />
     </AppShell>
   )
 }
