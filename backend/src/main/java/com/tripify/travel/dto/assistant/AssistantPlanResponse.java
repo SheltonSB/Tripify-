@@ -5,5 +5,8 @@ import java.util.List;
 public record AssistantPlanResponse(
     String destination,
     String summary,
-    List<AssistantStep> steps) {
+    List<AssistantStep> steps,
+    List<RecommendedPlace> recommendations,
+    Double fixedCost,
+    Double remainingBudget) {
 }

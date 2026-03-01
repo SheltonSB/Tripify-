@@ -1,8 +1,7 @@
 package com.tripify.travel.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,25 +9,23 @@ import static org.mockito.Mockito.when;
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
 import com.tripify.travel.dto.assistant.AssistantStep;
+import com.tripify.travel.dto.places.PlaceCandidate;
+import com.tripify.travel.dto.pricing.PriceQuote;
+import com.tripify.travel.dto.weather.WeatherSnapshot;
 import com.tripify.travel.model.AssistantPlan;
 import com.tripify.travel.model.Trip;
 import com.tripify.travel.model.User;
 import com.tripify.travel.repository.AssistantPlanRepository;
 import com.tripify.travel.repository.TripRepository;
 import com.tripify.travel.repository.UserRepository;
+import com.tripify.travel.service.port.AssistantServicePort;
 import com.tripify.travel.service.port.PlacesServicePort;
 import com.tripify.travel.service.port.PricingServicePort;
 import com.tripify.travel.service.port.WeatherServicePort;
-import com.tripify.travel.service.port.AssistantServicePort;
-import com.tripify.travel.dto.places.PlaceCandidate;
-import com.tripify.travel.dto.pricing.PriceQuote;
-import com.tripify.travel.dto.weather.WeatherSnapshot;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import static org.mockito.Mockito.mock;
 
@@ -74,10 +71,13 @@ class AssistantServiceTest {
             null,
             null,
             null);
-        AssistantPlanResponse response = new AssistantPlanResponse(
+        AssistantPlanResponse aiResponse = new AssistantPlanResponse(
             "Chicago",
             "Foodie weekend",
-            List.of(new AssistantStep("Explore", "Try local restaurants.", 1)));
+            List.of(new AssistantStep("Explore", "Try local restaurants.", 1)),
+            null,
+            null,
+            null);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(tripRepository.findFirstByUserIdAndLocationIgnoreCaseOrderByIdDesc(1L, "Chicago"))
@@ -88,27 +88,32 @@ class AssistantServiceTest {
             .thenReturn(new WeatherSnapshot("Chicago", "Clear", 21, false));
         when(placesServicePort.findActivities("Chicago", "foodie", null, null))
             .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null)));
-        when(assistantServicePort.buildPlan(any(AssistantPlanRequest.class))).thenReturn(response);
+        when(assistantServicePort.buildPlan(any(AssistantPlanRequest.class))).thenReturn(aiResponse);
         when(assistantPlanRepository.save(any(AssistantPlan.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
         AssistantPlanResponse persistedResponse = assistantService.buildPlan(request);
 
-        assertSame(response, persistedResponse);
+        assertEquals("Chicago", persistedResponse.destination());
+        assertEquals("Foodie weekend", persistedResponse.summary());
+        assertNotNull(persistedResponse.recommendations());
+        assertEquals(1, persistedResponse.recommendations().size());
+        assertEquals(299, persistedResponse.fixedCost());
+        assertEquals(901, persistedResponse.remainingBudget());
 
         ArgumentCaptor<AssistantPlan> planCaptor = ArgumentCaptor.forClass(AssistantPlan.class);
         verify(assistantPlanRepository).save(planCaptor.capture());
         AssistantPlan persistedPlan = planCaptor.getValue();
 
         assertEquals("Chicago", persistedPlan.getDestination());
-        assertSame(user, persistedPlan.getUser());
-        assertSame(trip, persistedPlan.getTrip());
+        assertEquals(user, persistedPlan.getUser());
+        assertEquals(trip, persistedPlan.getTrip());
         assertEquals(1, persistedPlan.getSteps().size());
         assertEquals("Explore", persistedPlan.getSteps().get(0).getTitle());
     }
 
     @Test
-    void buildPlanRequiresExistingTripForPersistence() {
+    void buildPlanCreatesTripWhenUserHasNoExistingTrip() {
         AssistantServicePort assistantServicePort = mock(AssistantServicePort.class);
         UserRepository userRepository = mock(UserRepository.class);
         TripRepository tripRepository = mock(TripRepository.class);
@@ -151,11 +156,39 @@ class AssistantServiceTest {
         when(tripRepository.findFirstByUserIdOrderByIdDesc(1L))
             .thenReturn(Optional.empty());
 
-        ResponseStatusException exception = assertThrows(
-            ResponseStatusException.class,
-            () -> assistantService.buildPlan(request));
+        Trip createdTrip = new Trip();
+        createdTrip.setId(42L);
+        createdTrip.setUser(user);
+        createdTrip.setLocation("Chicago");
+        createdTrip.setBudget(1200);
+        createdTrip.setDays(3);
+        createdTrip.setPeople(2);
+        when(tripRepository.save(any(Trip.class))).thenReturn(createdTrip);
+        when(pricingServicePort.getTripPricing("Current location", "Chicago", 2))
+            .thenReturn(List.of(new PriceQuote("amadeus", "flight", "USD", 299, "test")));
+        when(weatherServicePort.getCurrentWeather("Chicago"))
+            .thenReturn(new WeatherSnapshot("Chicago", "Clear", 21, false));
+        when(placesServicePort.findActivities("Chicago", "foodie", null, null))
+            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null)));
 
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-        assertEquals("Create a trip before generating an assistant plan", exception.getReason());
+        AssistantPlanResponse aiResponse = new AssistantPlanResponse(
+            "Chicago",
+            "Foodie weekend",
+            List.of(new AssistantStep("Explore", "Try local restaurants.", 1)),
+            null,
+            null,
+            null);
+        when(assistantServicePort.buildPlan(any(AssistantPlanRequest.class))).thenReturn(aiResponse);
+        when(assistantPlanRepository.save(any(AssistantPlan.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AssistantPlanResponse persistedResponse = assistantService.buildPlan(request);
+
+        assertEquals("Chicago", persistedResponse.destination());
+        assertNotNull(persistedResponse.recommendations());
+        assertEquals(1, persistedResponse.recommendations().size());
+        assertEquals(299, persistedResponse.fixedCost());
+        assertEquals(901, persistedResponse.remainingBudget());
+        verify(tripRepository).save(any(Trip.class));
     }
 }

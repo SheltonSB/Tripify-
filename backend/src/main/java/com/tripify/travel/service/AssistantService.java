@@ -2,6 +2,7 @@ package com.tripify.travel.service;
 
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
+import com.tripify.travel.dto.assistant.RecommendedPlace;
 import com.tripify.travel.dto.assistant.AssistantStep;
 import com.tripify.travel.dto.assistant.StoredAssistantPlanResponse;
 import com.tripify.travel.dto.places.PlaceCandidate;
@@ -77,14 +78,23 @@ public class AssistantService {
             enrichedRequest.weather() != null ? enrichedRequest.weather().summary() : "none");
 
         AssistantPlanResponse response = assistantServicePort.buildPlan(enrichedRequest);
-        assistantPlanRepository.save(toEntity(response, user, trip));
+        double fixedCost = estimateFixedCost(enrichedRequest.priceQuotes());
+        double remainingBudget = Math.max(0, enrichedRequest.budget() - fixedCost);
+        AssistantPlanResponse enrichedResponse = new AssistantPlanResponse(
+            response.destination(),
+            response.summary(),
+            response.steps(),
+            toRecommendations(enrichedRequest.places(), enrichedRequest.vibe(), enrichedRequest.weather()),
+            fixedCost,
+            remainingBudget);
+        assistantPlanRepository.save(toEntity(enrichedResponse, user, trip));
         logger.info(
             "Persisted AI plan userId={} tripId={} destination={} steps={}",
             user.getId(),
             trip.getId(),
             response.destination(),
             response.steps().size());
-        return response;
+        return enrichedResponse;
     }
 
     @Transactional(readOnly = true)
@@ -133,9 +143,18 @@ public class AssistantService {
 
         return tripRepository.findFirstByUserIdAndLocationIgnoreCaseOrderByIdDesc(user.getId(), request.destination())
             .or(() -> tripRepository.findFirstByUserIdOrderByIdDesc(user.getId()))
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Create a trip before generating an assistant plan"));
+            .orElseGet(() -> createTripForAssistant(request, user));
+    }
+
+    private Trip createTripForAssistant(AssistantPlanRequest request, User user) {
+        Trip trip = new Trip();
+        trip.setUser(user);
+        trip.setLocation(request.destination().trim());
+        trip.setBudget(request.budget());
+        trip.setDays(request.days());
+        trip.setPeople(request.people());
+        trip.setConfirmed(false);
+        return tripRepository.save(trip);
     }
 
     private AssistantPlan toEntity(AssistantPlanResponse response, User user, Trip trip) {
@@ -312,5 +331,51 @@ public class AssistantService {
             }
         }
         return "";
+    }
+
+    private double estimateFixedCost(List<PriceQuote> quotes) {
+        if (quotes == null || quotes.isEmpty()) {
+            return 0;
+        }
+        return quotes.stream()
+            .filter(quote -> hasText(quote.category()))
+            .filter(quote -> {
+                String category = quote.category().trim().toLowerCase();
+                return category.equals("flight") || category.equals("lodging") || category.equals("hotel");
+            })
+            .mapToDouble(PriceQuote::amount)
+            .sum();
+    }
+
+    private List<RecommendedPlace> toRecommendations(List<PlaceCandidate> rankedPlaces, String vibe, WeatherSnapshot weather) {
+        if (rankedPlaces == null || rankedPlaces.isEmpty()) {
+            return List.of();
+        }
+        return rankedPlaces.stream()
+            .map(place -> new RecommendedPlace(
+                place.name(),
+                place.category(),
+                place.estimatedCost(),
+                place.distanceMeters(),
+                place.provider(),
+                buildRecommendationReason(place, vibe, weather)))
+            .toList();
+    }
+
+    private String buildRecommendationReason(PlaceCandidate place, String vibe, WeatherSnapshot weather) {
+        StringBuilder reason = new StringBuilder();
+        reason.append("Matches ").append(hasText(vibe) ? vibe : "your").append(" preferences");
+        if (place.estimatedCost() <= 0) {
+            reason.append(", free or very low cost");
+        } else {
+            reason.append(", estimated at ").append(String.format("$%.0f", place.estimatedCost()));
+        }
+        if (place.distanceMeters() != null) {
+            reason.append(", around ").append(Math.round(place.distanceMeters())).append("m away");
+        }
+        if (weather != null && weather.alertActive()) {
+            reason.append(", adjusted for current weather alerts");
+        }
+        return reason.toString();
     }
 }
