@@ -49,6 +49,23 @@ function useApiAction(action) {
   return { status, data, error, run }
 }
 
+function formatDistance(distanceMeters) {
+  if (typeof distanceMeters !== 'number' || Number.isNaN(distanceMeters)) {
+    return 'Unknown'
+  }
+  if (distanceMeters < 1000) {
+    return `${Math.round(distanceMeters)}m`
+  }
+  return `${(distanceMeters / 1000).toFixed(1)}km`
+}
+
+function isSyntheticRecommendationSet(recommendations) {
+  if (!Array.isArray(recommendations) || recommendations.length === 0) {
+    return false
+  }
+  return recommendations.every((item) => (item?.provider || '').toLowerCase().includes('synthetic'))
+}
+
 function AppShell({ title, subtitle, children }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -354,6 +371,36 @@ function DealCard({ title, detail, image }) {
         <span>{detail}</span>
       </div>
     </article>
+  )
+}
+
+function IridescenceBackground() {
+  return (
+    <div className="iridescence-bg" aria-hidden="true">
+      <span className="iridescence-layer iridescence-layer-1" />
+      <span className="iridescence-layer iridescence-layer-2" />
+      <span className="iridescence-layer iridescence-layer-3" />
+      <span className="iridescence-grain" />
+    </div>
+  )
+}
+
+function LandingIntroPage() {
+  const navigate = useNavigate()
+
+  return (
+    <section className="intro-landing-page">
+      <IridescenceBackground />
+      <div className="intro-landing-overlay" />
+      <div className="intro-landing-content">
+        <p className="landing-kicker">Tripify</p>
+        <h1>Your journey starts here.</h1>
+        <p>Discover smarter travel options tailored to your budget, vibe, and preferences.</p>
+        <button type="button" className="solid-btn" onClick={() => navigate('/explore')}>
+          Get Started
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -946,6 +993,10 @@ function AssistantPage() {
   const [historyError, setHistoryError] = useState('')
   const profileAction = useApiAction((id) => getUser(id))
   const latestPlan = assistantAction.status === 'success' ? assistantAction.data : null
+  const recommendationProviders = Array.isArray(latestPlan?.recommendations)
+    ? latestPlan.recommendations.map((item) => (item?.provider || '').toLowerCase())
+    : []
+  const usingSyntheticRecommendations = recommendationProviders.some((provider) => provider.includes('synthetic'))
 
   const setIntentField = (field, value) => {
     setIntent((prev) => ({ ...prev, [field]: value }))
@@ -1039,15 +1090,22 @@ function AssistantPage() {
 
   const submit = async (event) => {
     event.preventDefault()
+    if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
+      return
+    }
+    if (!intent.destination.trim()) {
+      return
+    }
+
     const payload = {
       userId: numericUserId,
-      destination: intent.destination,
+      destination: intent.destination.trim(),
       budget: Number(intent.budget),
       days: Number(intent.days),
       people: Number(intent.people),
       prompt: buildPromptWithIntent(),
       vibe: intent.vibe,
-      origin: intent.origin,
+      origin: intent.origin.trim() || 'Current location',
     }
 
     if (numericTripId) {
@@ -1067,7 +1125,7 @@ function AssistantPage() {
     }
 
     const response = await assistantAction.run(payload)
-    if (response?.steps?.length) {
+    if (response && (Array.isArray(response.steps) || response.summary)) {
       navigate('/plans/ready', { state: { plan: response } })
     }
   }
@@ -1251,6 +1309,11 @@ function AssistantPage() {
             <textarea rows="4" value={intent.prompt} onChange={(e) => setIntentField('prompt', e.target.value)} required />
           </label>
           <SubmitButton status={assistantAction.status} loadingText="Building..." idleText="Build plan" />
+          {assistantAction.status === 'error' ? (
+            <p className="form-notice form-notice-error">
+              {assistantAction.error}
+            </p>
+          ) : null}
         </form>
 
         {latestPlan?.steps?.length ? (
@@ -1260,6 +1323,11 @@ function AssistantPage() {
                 <p className="landing-kicker">Plan Brief</p>
                 <h2>Welcome, Traveler.</h2>
                 <p>{latestPlan.summary}</p>
+                {usingSyntheticRecommendations ? (
+                  <p className="form-notice form-notice-warning">
+                    Running in demo data mode for recommendations while live places providers are unavailable.
+                  </p>
+                ) : null}
                 {latestPlan.steps[0]?.description ? (
                   <p>
                     Featured stop: <strong>{latestPlan.steps[0].description}</strong>
@@ -1304,6 +1372,8 @@ function TravelPlanReadyPage() {
   const navigate = useNavigate()
   const plan = location.state?.plan
   const recommendations = Array.isArray(plan?.recommendations) ? plan.recommendations : []
+  const usingSyntheticRecommendations = isSyntheticRecommendationSet(recommendations)
+  const steps = Array.isArray(plan?.steps) ? plan.steps : []
   const fixedCost = typeof plan?.fixedCost === 'number' ? plan.fixedCost : null
   const remainingBudget = typeof plan?.remainingBudget === 'number' ? plan.remainingBudget : null
 
@@ -1333,6 +1403,11 @@ function TravelPlanReadyPage() {
 
       <section className="plan-days-section">
         <h2>{plan.destination} - Day by Day</h2>
+        {usingSyntheticRecommendations ? (
+          <p className="form-notice form-notice-warning">
+            Recommendations are currently in demo mode. Live providers are unavailable, so Tripify is using destination-aware fallback data.
+          </p>
+        ) : null}
         <div className="budget-summary">
           <article className="spotlight-card budget-card">
             <p className="spotlight-day">Fixed Costs</p>
@@ -1358,24 +1433,37 @@ function TravelPlanReadyPage() {
                     Cost: <strong>${Number(item.estimatedCost || 0).toFixed(0)}</strong>
                   </p>
                   <p>
-                    Distance: <strong>{item.distanceMeters == null ? 'Unknown' : `${Math.round(item.distanceMeters)}m`}</strong>
+                    Distance: <strong>{formatDistance(item.distanceMeters)}</strong>
                   </p>
                   <p>{item.reason}</p>
                 </article>
               ))}
             </div>
           </>
-        ) : null}
+        ) : (
+          <article className="spotlight-card spotlight-card-empty">
+            <p className="spotlight-day">Recommendations</p>
+            <h3>No ranked places available yet</h3>
+            <p>Try adjusting destination, vibe, or enabling location access to get nearby recommendations.</p>
+          </article>
+        )}
 
         <h2>Suggested Day Plan</h2>
         <div className="spotlight-grid">
-          {(plan.steps || []).map((step, index) => (
+          {steps.map((step, index) => (
             <article className="spotlight-card" key={`${step.dayNumber}-${step.title}-${index}`}>
               <p className="spotlight-day">Day {step.dayNumber}</p>
               <h3>{step.title}</h3>
               <p>{step.description}</p>
             </article>
           ))}
+          {steps.length === 0 ? (
+            <article className="spotlight-card spotlight-card-empty">
+              <p className="spotlight-day">Day Plan</p>
+              <h3>No generated itinerary steps</h3>
+              <p>Go back to the assistant and regenerate once AI provider connectivity is restored.</p>
+            </article>
+          ) : null}
         </div>
       </section>
     </div>
@@ -1418,7 +1506,8 @@ function App() {
   return (
     <AuthContext.Provider value={{ currentUser, setCurrentUser }}>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<LandingIntroPage />} />
+        <Route path="/explore" element={<HomePage />} />
         <Route path="/signup" element={<AuthPage mode="signup" />} />
         <Route path="/login" element={<AuthPage mode="login" />} />
         <Route path="/onboarding/:userId" element={<OnboardingPage />} />
@@ -1437,5 +1526,3 @@ function App() {
 }
 
 export default App
-
-

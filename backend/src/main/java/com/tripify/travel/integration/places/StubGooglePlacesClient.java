@@ -1,6 +1,7 @@
 package com.tripify.travel.integration.places;
 
 import com.tripify.travel.dto.places.PlaceCandidate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,9 +75,97 @@ public class StubGooglePlacesClient implements GooglePlacesClient {
             }
         }
 
-        return List.of(
-            new PlaceCandidate(city + " Riverwalk", "sightseeing", vibe, 0, "google-places", null),
-            new PlaceCandidate(city + " Food Hall", "dining", vibe, 28, "google-places", null));
+        return fallbackPlaces(city, vibe);
+    }
+
+    private List<PlaceCandidate> fallbackPlaces(String city, String vibe) {
+        String normalizedCity = city == null ? "" : city.trim().toLowerCase();
+        String normalizedVibe = vibe == null ? "" : vibe.trim().toLowerCase();
+        String safeCity = city == null || city.isBlank() ? "Destination" : city.trim();
+
+        if (normalizedCity.contains("antarctica")) {
+            return List.of(
+                new PlaceCandidate("Antarctica Research Visitor Centre", "education", vibe, 12, "synthetic-fallback", 900.0),
+                new PlaceCandidate("Polar Observation Deck", "sightseeing", vibe, 18, "synthetic-fallback", 1600.0),
+                new PlaceCandidate("Polar History Exhibit", "museum", vibe, 10, "synthetic-fallback", 2400.0),
+                new PlaceCandidate("Ice Shelf Scenic Point", "outdoor", vibe, 0, "synthetic-fallback", 4200.0));
+        }
+
+        if (normalizedCity.contains("kyoto")) {
+            return fallbackFromTemplates(vibe, List.of(
+                new FallbackTemplate("Fushimi Inari Shrine Path", "historic", 0),
+                new FallbackTemplate("Nishiki Market Tastings", "dining", 24),
+                new FallbackTemplate("Kiyomizu-dera District Walk", "sightseeing", 16),
+                new FallbackTemplate("Arashiyama Bamboo Grove", "outdoor", 0)), safeCity);
+        }
+
+        if (normalizedCity.contains("chicago")) {
+            return fallbackFromTemplates(vibe, List.of(
+                new FallbackTemplate("Art Institute of Chicago", "museum", 32),
+                new FallbackTemplate("West Loop Food Crawl", "dining", 28),
+                new FallbackTemplate("Architecture River Cruise", "tour", 44),
+                new FallbackTemplate("Millennium Park Loop", "outdoor", 0)), safeCity);
+        }
+
+        if (normalizedCity.contains("london")) {
+            return fallbackFromTemplates(vibe, List.of(
+                new FallbackTemplate("British Museum Visit", "museum", 0),
+                new FallbackTemplate("Borough Market Bites", "dining", 24),
+                new FallbackTemplate("South Bank Walk", "sightseeing", 0),
+                new FallbackTemplate("Tower Bridge & Riverside", "historic", 14)), safeCity);
+        }
+
+        if (normalizedVibe.contains("food")) {
+            return fallbackFromTemplates(vibe, List.of(
+                new FallbackTemplate(safeCity + " Local Market", "dining", 22),
+                new FallbackTemplate(safeCity + " Street Food Hall", "dining", 26),
+                new FallbackTemplate(safeCity + " Chef Counter", "restaurant", 38),
+                new FallbackTemplate(safeCity + " Coffee & Bakery Trail", "cafe", 16)), safeCity);
+        }
+
+        if (normalizedVibe.contains("night")) {
+            return fallbackFromTemplates(vibe, List.of(
+                new FallbackTemplate(safeCity + " Live Music Venue", "nightlife", 32),
+                new FallbackTemplate(safeCity + " Rooftop Lounge", "drinks", 36),
+                new FallbackTemplate(safeCity + " Sunset District Walk", "sightseeing", 0),
+                new FallbackTemplate(safeCity + "Late Bistro", "restaurant", 30)), safeCity);
+        }
+
+        if (normalizedVibe.contains("family")) {
+            return fallbackFromTemplates(vibe, List.of(
+                new FallbackTemplate(safeCity + " Science Center", "family", 20),
+                new FallbackTemplate(safeCity + " Family Park", "outdoor", 8),
+                new FallbackTemplate(safeCity + " Children's Museum", "museum", 18),
+                new FallbackTemplate(safeCity + " Urban Aquarium", "education", 26)), safeCity);
+        }
+
+        return fallbackFromTemplates(vibe, List.of(
+            new FallbackTemplate(safeCity + " Cultural Center", "activity", 15),
+            new FallbackTemplate(safeCity + " Historic District Walk", "sightseeing", 10),
+            new FallbackTemplate(safeCity + " Central Museum", "museum", 18),
+            new FallbackTemplate(safeCity + " Community Food Court", "dining", 20)), safeCity);
+    }
+
+    private List<PlaceCandidate> fallbackFromTemplates(String vibe, List<FallbackTemplate> templates, String city) {
+        List<PlaceCandidate> candidates = new ArrayList<>();
+        int seed = Math.abs((city == null ? "" : city.toLowerCase()).hashCode());
+        for (int index = 0; index < templates.size(); index++) {
+            FallbackTemplate template = templates.get(index);
+            double distance = estimateFallbackDistance(seed, index);
+            candidates.add(new PlaceCandidate(
+                template.name(),
+                template.category(),
+                vibe,
+                template.estimatedCost(),
+                "synthetic-fallback",
+                distance));
+        }
+        return candidates;
+    }
+
+    private double estimateFallbackDistance(int seed, int index) {
+        int base = 650 + ((seed + (index * 997)) % 5200);
+        return (double) base;
     }
 
     private String buildQuery(String city, String vibe) {
@@ -179,5 +268,8 @@ public class StubGooglePlacesClient implements GooglePlacesClient {
             }
         }
         return null;
+    }
+
+    private record FallbackTemplate(String name, String category, double estimatedCost) {
     }
 }

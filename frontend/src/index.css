@@ -378,6 +378,123 @@ button:disabled {
   font-size: clamp(1.7rem, 4.2vw, 2.7rem);
 }
 
+.intro-landing-page {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.intro-landing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(145deg, rgba(0, 28, 21, 0.48), rgba(0, 69, 51, 0.34));
+}
+
+.intro-landing-content {
+  position: relative;
+  z-index: 3;
+  width: min(760px, 90vw);
+  text-align: center;
+  color: #f4fff9;
+  padding: 1.2rem;
+}
+
+.intro-landing-content h1 {
+  margin: 0.25rem 0 0.9rem;
+  line-height: 1.05;
+  font-size: clamp(2.1rem, 6.5vw, 4.6rem);
+}
+
+.intro-landing-content p {
+  margin: 0 0 1rem;
+  color: rgba(244, 255, 249, 0.9);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+}
+
+.intro-landing-content .solid-btn {
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #00664c;
+  min-width: 180px;
+}
+
+.intro-landing-content .solid-btn:hover {
+  background: #e9fff6;
+}
+
+.iridescence-bg {
+  position: absolute;
+  inset: -6%;
+  z-index: 1;
+  background: radial-gradient(circle at 20% 20%, #65f2c2 0%, transparent 42%),
+    radial-gradient(circle at 80% 18%, #5fd2ff 0%, transparent 40%),
+    radial-gradient(circle at 60% 82%, #8f7aff 0%, transparent 38%),
+    radial-gradient(circle at 12% 78%, #19c6a4 0%, transparent 45%),
+    linear-gradient(125deg, #022b20 0%, #05392d 45%, #034434 100%);
+}
+
+.iridescence-layer {
+  position: absolute;
+  inset: -12%;
+  mix-blend-mode: screen;
+  opacity: 0.42;
+  filter: blur(14px);
+}
+
+.iridescence-layer-1 {
+  background: conic-gradient(from 20deg, transparent, rgba(128, 235, 212, 0.65), transparent 52%);
+  animation: iridescence-shift-1 16s linear infinite;
+}
+
+.iridescence-layer-2 {
+  background: conic-gradient(from 180deg, transparent, rgba(104, 196, 255, 0.56), transparent 55%);
+  animation: iridescence-shift-2 22s linear infinite reverse;
+}
+
+.iridescence-layer-3 {
+  background: conic-gradient(from 290deg, transparent, rgba(170, 144, 255, 0.48), transparent 58%);
+  animation: iridescence-shift-3 26s linear infinite;
+}
+
+.iridescence-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.32) 1px, transparent 0);
+  background-size: 3px 3px;
+}
+
+@keyframes iridescence-shift-1 {
+  from {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.07);
+  }
+}
+
+@keyframes iridescence-shift-2 {
+  from {
+    transform: translate3d(4%, -3%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-2%, 4%, 0) scale(1.05);
+  }
+}
+
+@keyframes iridescence-shift-3 {
+  from {
+    transform: translate3d(-2%, 3%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, -2%, 0) scale(1.06);
+  }
+}
+
 .landing-search {
   margin-top: 1rem;
   display: grid;
@@ -849,6 +966,26 @@ textarea:focus {
   color: #a61111;
 }
 
+.form-notice {
+  margin: 0;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+}
+
+.form-notice-error {
+  color: #8d1e1e;
+  border-color: #e9b1b1;
+  background: #fff1f1;
+}
+
+.form-notice-warning {
+  color: #6f4a00;
+  border-color: #ecd298;
+  background: #fff8e8;
+}
+
 .onboarding-card {
   width: min(720px, 92%);
   max-height: min(88vh, 920px);
@@ -1167,6 +1304,10 @@ textarea:focus {
 .spotlight-card p {
   margin: 0.3rem 0 0;
   color: #2d5950;
+}
+
+.spotlight-card-empty {
+  grid-column: 1 / -1;
 }
 
 @keyframes veil-shift {

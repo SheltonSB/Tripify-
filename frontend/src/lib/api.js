@@ -24,7 +24,7 @@ async function request(path, options = {}) {
     const responseText = await response.text()
 
     if (!response.ok) {
-      throw new Error(`Request failed (${response.status}): ${responseText}`)
+      throw new Error(buildRequestErrorMessage(response.status, responseText))
     }
 
     const contentType = response.headers.get('content-type') || ''
@@ -40,6 +40,29 @@ async function request(path, options = {}) {
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+function buildRequestErrorMessage(status, responseText) {
+  let details = responseText
+  try {
+    const parsed = responseText ? JSON.parse(responseText) : null
+    if (parsed && typeof parsed === 'object') {
+      details = parsed.message || parsed.error || responseText
+    }
+  } catch (_error) {
+    details = responseText
+  }
+
+  if (status === 503) {
+    return `Service temporarily unavailable. ${details || 'Please retry in a few seconds.'}`
+  }
+  if (status === 502) {
+    return `Upstream provider is unreachable. ${details || 'Please retry shortly.'}`
+  }
+  if (status === 400) {
+    return details || 'Please check your input and try again.'
+  }
+  return `Request failed (${status}): ${details || 'Unexpected response'}`
 }
 
 export function getHealth() {

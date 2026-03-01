@@ -2,8 +2,8 @@ package com.tripify.travel.service;
 
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
-import com.tripify.travel.dto.assistant.RecommendedPlace;
 import com.tripify.travel.dto.assistant.AssistantStep;
+import com.tripify.travel.dto.assistant.RecommendedPlace;
 import com.tripify.travel.dto.assistant.StoredAssistantPlanResponse;
 import com.tripify.travel.dto.places.PlaceCandidate;
 import com.tripify.travel.dto.pricing.PriceQuote;
@@ -19,6 +19,7 @@ import com.tripify.travel.service.port.AssistantServicePort;
 import com.tripify.travel.service.port.PlacesServicePort;
 import com.tripify.travel.service.port.PricingServicePort;
 import com.tripify.travel.service.port.WeatherServicePort;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,7 +78,20 @@ public class AssistantService {
             enrichedRequest.places().size(),
             enrichedRequest.weather() != null ? enrichedRequest.weather().summary() : "none");
 
-        AssistantPlanResponse response = assistantServicePort.buildPlan(enrichedRequest);
+        AssistantPlanResponse response;
+        try {
+            response = assistantServicePort.buildPlan(enrichedRequest);
+        } catch (RuntimeException exception) {
+            logger.warn(
+                "AI planner unavailable for userId={} tripId={} destination={}, using ranked-place fallback",
+                enrichedRequest.userId(),
+                trip.getId(),
+                enrichedRequest.destination(),
+                exception);
+            response = buildFallbackPlan(enrichedRequest);
+        }
+
+        response = normalizeAssistantResponse(response, enrichedRequest.destination(), enrichedRequest.days(), enrichedRequest.places());
         double fixedCost = estimateFixedCost(enrichedRequest.priceQuotes());
         double remainingBudget = Math.max(0, enrichedRequest.budget() - fixedCost);
         AssistantPlanResponse enrichedResponse = new AssistantPlanResponse(
@@ -164,7 +178,7 @@ public class AssistantService {
         plan.setUser(user);
         plan.setTrip(trip);
 
-        for (AssistantStep step : response.steps()) {
+        for (AssistantStep step : response.steps() == null ? List.<AssistantStep>of() : response.steps()) {
             AssistantPlanStep planStep = new AssistantPlanStep();
             planStep.setTitle(step.title());
             planStep.setDescription(step.description());
@@ -331,6 +345,89 @@ public class AssistantService {
             }
         }
         return "";
+    }
+
+    private AssistantPlanResponse buildFallbackPlan(AssistantPlanRequest request) {
+        List<PlaceCandidate> rankedPlaces = request.places() == null ? List.of() : request.places();
+        List<AssistantStep> steps = new ArrayList<>();
+        int days = Math.max(1, request.days());
+        String destination = firstText(request.destination(), "your destination");
+        for (int day = 1; day <= days; day++) {
+            PlaceCandidate place = rankedPlaces.isEmpty() ? null : rankedPlaces.get((day - 1) % rankedPlaces.size());
+            String title = place == null
+                ? "Flexible exploration day"
+                : "Discover " + place.name();
+            String description = place == null
+                ? "Use this day for local highlights, neighborhood walks, and food stops within your budget."
+                : buildFallbackStepDescription(place, request.weather());
+            steps.add(new AssistantStep(title, description, day));
+        }
+
+        String weatherNote = request.weather() == null
+            ? "Weather data unavailable."
+            : request.weather().summary() + " at about " + Math.round(request.weather().temperatureCelsius()) + "C.";
+        String summary = "AI service was temporarily unavailable, so this plan uses ranked real-place candidates and pricing inputs. Weather note: "
+            + weatherNote;
+
+        return new AssistantPlanResponse(destination, summary, steps, null, null, null);
+    }
+
+    private String buildFallbackStepDescription(PlaceCandidate place, WeatherSnapshot weather) {
+        StringBuilder description = new StringBuilder();
+        description.append("Visit ").append(place.name());
+        if (hasText(place.category())) {
+            description.append(" (").append(place.category()).append(")");
+        }
+        description.append(". Estimated spend: ").append(String.format("$%.0f", place.estimatedCost())).append(".");
+        if (place.distanceMeters() != null) {
+            description.append(" Approx distance: ").append(Math.round(place.distanceMeters())).append("m.");
+        }
+        description.append(" Suggested transport: ");
+        if (place.distanceMeters() != null && place.distanceMeters() <= 1800) {
+            description.append("walk or short transit.");
+        } else {
+            description.append("public transit or rideshare.");
+        }
+        if (weather != null && weather.alertActive()) {
+            description.append(" Prioritize indoor segments due to weather alerts.");
+        }
+        return description.toString();
+    }
+
+    private AssistantPlanResponse normalizeAssistantResponse(
+        AssistantPlanResponse response,
+        String destination,
+        int days,
+        List<PlaceCandidate> rankedPlaces) {
+        if (response == null) {
+            return buildFallbackPlan(new AssistantPlanRequest(
+                null,
+                null,
+                destination,
+                0,
+                days,
+                1,
+                "",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                rankedPlaces));
+        }
+        String normalizedDestination = hasText(response.destination()) ? response.destination() : destination;
+        String normalizedSummary = hasText(response.summary())
+            ? response.summary()
+            : "Plan generated from your trip intent and ranked places.";
+        List<AssistantStep> normalizedSteps = response.steps() == null ? List.of() : response.steps();
+        return new AssistantPlanResponse(
+            normalizedDestination,
+            normalizedSummary,
+            normalizedSteps,
+            response.recommendations(),
+            response.fixedCost(),
+            response.remainingBudget());
     }
 
     private double estimateFixedCost(List<PriceQuote> quotes) {

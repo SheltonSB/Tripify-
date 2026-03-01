@@ -2,7 +2,9 @@ package com.tripify.travel.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -190,5 +192,71 @@ class AssistantServiceTest {
         assertEquals(299, persistedResponse.fixedCost());
         assertEquals(901, persistedResponse.remainingBudget());
         verify(tripRepository).save(any(Trip.class));
+    }
+
+    @Test
+    void buildPlanFallsBackWhenAiProviderFails() {
+        AssistantServicePort assistantServicePort = mock(AssistantServicePort.class);
+        UserRepository userRepository = mock(UserRepository.class);
+        TripRepository tripRepository = mock(TripRepository.class);
+        AssistantPlanRepository assistantPlanRepository = mock(AssistantPlanRepository.class);
+        PricingServicePort pricingServicePort = mock(PricingServicePort.class);
+        WeatherServicePort weatherServicePort = mock(WeatherServicePort.class);
+        PlacesServicePort placesServicePort = mock(PlacesServicePort.class);
+        AssistantService assistantService = new AssistantService(
+            assistantServicePort,
+            userRepository,
+            tripRepository,
+            assistantPlanRepository,
+            pricingServicePort,
+            weatherServicePort,
+            placesServicePort,
+            new PlaceRankingService());
+
+        User user = new User();
+        user.setId(1L);
+        Trip trip = new Trip();
+        trip.setId(7L);
+        trip.setUser(user);
+
+        AssistantPlanRequest request = new AssistantPlanRequest(
+            1L,
+            null,
+            "Chicago",
+            1200,
+            3,
+            2,
+            "Plan a food-focused weekend",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(tripRepository.findFirstByUserIdAndLocationIgnoreCaseOrderByIdDesc(1L, "Chicago"))
+            .thenReturn(Optional.of(trip));
+        when(pricingServicePort.getTripPricing("Current location", "Chicago", 2))
+            .thenReturn(List.of(new PriceQuote("amadeus", "flight", "USD", 310, "fallback-test")));
+        when(weatherServicePort.getCurrentWeather("Chicago"))
+            .thenReturn(new WeatherSnapshot("Chicago", "Cloudy", 18, false));
+        when(placesServicePort.findActivities("Chicago", "foodie", null, null))
+            .thenReturn(List.of(
+                new PlaceCandidate("West Loop Food Crawl", "dining", "foodie", 28, "synthetic-fallback", 1200.0),
+                new PlaceCandidate("Art Institute of Chicago", "museum", "foodie", 32, "synthetic-fallback", 1800.0)));
+        doThrow(new RuntimeException("AI unavailable")).when(assistantServicePort).buildPlan(any(AssistantPlanRequest.class));
+        when(assistantPlanRepository.save(any(AssistantPlan.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        AssistantPlanResponse response = assistantService.buildPlan(request);
+
+        assertEquals("Chicago", response.destination());
+        assertTrue(response.summary().toLowerCase().contains("temporarily unavailable"));
+        assertTrue(response.steps().size() >= 1);
+        assertEquals(310, response.fixedCost());
+        assertNotNull(response.recommendations());
+        assertTrue(response.recommendations().size() >= 1);
     }
 }

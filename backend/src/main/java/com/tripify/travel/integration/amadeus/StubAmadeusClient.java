@@ -33,8 +33,8 @@ public class StubAmadeusClient implements AmadeusClient {
 
     @Override
     public List<PriceQuote> searchTravelCosts(String origin, String destination, int travelers) {
-        double fallbackFlightAmount = 175 + (travelers * 94);
-        double fallbackHotelAmount = 145 + (travelers * 28);
+        double fallbackFlightAmount = estimateFallbackFlightAmount(origin, destination, travelers);
+        double fallbackHotelAmount = estimateFallbackHotelAmount(destination, travelers);
 
         if (!clientId.isBlank() && !clientSecret.isBlank()) {
             try {
@@ -64,6 +64,37 @@ public class StubAmadeusClient implements AmadeusClient {
         return List.of(
             new PriceQuote("amadeus", "flight", "USD", fallbackFlightAmount, origin + "-" + destination + "-economy"),
             new PriceQuote("amadeus", "hotel", "USD", fallbackHotelAmount, destination + "-standard"));
+    }
+
+    private double estimateFallbackFlightAmount(String origin, String destination, int travelers) {
+        int safeTravelers = Math.max(travelers, 1);
+        int routeHash = Math.abs((safeText(origin) + "->" + safeText(destination)).hashCode());
+
+        double basePerTraveler = 140 + (routeHash % 260); // 140..399
+        double routeTaxAndFees = 45 + (routeHash % 70); // 45..114
+        double monthlyAdjustment = LocalDate.now().getMonthValue() * 3.5; // seasonality signal
+        double total = (basePerTraveler * safeTravelers) + routeTaxAndFees + monthlyAdjustment;
+        return roundToCents(total);
+    }
+
+    private double estimateFallbackHotelAmount(String destination, int travelers) {
+        int safeTravelers = Math.max(travelers, 1);
+        int destinationHash = Math.abs(safeText(destination).hashCode());
+
+        double baseNightly = 70 + (destinationHash % 180); // 70..249
+        int rooms = Math.max(1, (int) Math.ceil(safeTravelers / 2.0));
+        double occupancyAdjustment = 12 * Math.max(0, safeTravelers - 1);
+        double monthlyAdjustment = LocalDate.now().getMonthValue() * 2.0;
+        double total = (baseNightly * rooms) + occupancyAdjustment + monthlyAdjustment;
+        return roundToCents(total);
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private double roundToCents(double amount) {
+        return Math.round(amount * 100.0) / 100.0;
     }
 
     private String fetchAccessToken() {
