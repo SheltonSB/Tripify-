@@ -28,6 +28,7 @@ class PlaceContext(BaseModel):
     vibe: str
     estimated_cost: float = Field(alias="estimatedCost")
     provider: str
+    distance_meters: float | None = Field(default=None, alias="distanceMeters")
 
 
 class AssistantRequest(BaseModel):
@@ -41,6 +42,8 @@ class AssistantRequest(BaseModel):
     people: int
     prompt: str = ""
     origin: str = "Current location"
+    latitude: float | None = None
+    longitude: float | None = None
     vibe: str = "balanced"
     price_quotes: list[PricingQuote] = Field(default_factory=list, alias="priceQuotes")
     weather: WeatherContext | None = None

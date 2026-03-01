@@ -99,6 +99,12 @@ public class FastApiAssistantClient implements AssistantClient, AssistantService
         if (request.origin() != null) {
             payload.put("origin", request.origin());
         }
+        if (request.latitude() != null) {
+            payload.put("latitude", request.latitude());
+        }
+        if (request.longitude() != null) {
+            payload.put("longitude", request.longitude());
+        }
         if (request.vibe() != null) {
             payload.put("vibe", request.vibe());
         }

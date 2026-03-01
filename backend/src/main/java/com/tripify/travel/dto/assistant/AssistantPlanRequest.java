@@ -14,6 +14,8 @@ public record AssistantPlanRequest(
     int people,
     String prompt,
     String origin,
+    Double latitude,
+    Double longitude,
     String vibe,
     List<PriceQuote> priceQuotes,
     WeatherSnapshot weather,

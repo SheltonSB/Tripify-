@@ -56,7 +56,7 @@ public class StubYelpClient implements YelpClient {
                         double estimatedCost = business.get("price") instanceof String price
                             ? price.length() * 15
                             : 25;
-                        return new PlaceCandidate(name, category, vibe, estimatedCost, "yelp");
+                        return new PlaceCandidate(name, category, vibe, estimatedCost, "yelp", null);
                     }).toList();
                 }
             } catch (RuntimeException exception) {
@@ -65,7 +65,7 @@ public class StubYelpClient implements YelpClient {
         }
 
         return List.of(
-            new PlaceCandidate(city + " Jazz Bar", "nightlife", vibe, 35, "yelp"),
-            new PlaceCandidate(city + " Rooftop Lounge", "drinks", vibe, 42, "yelp"));
+            new PlaceCandidate(city + " Jazz Bar", "nightlife", vibe, 35, "yelp", null),
+            new PlaceCandidate(city + " Rooftop Lounge", "drinks", vibe, 42, "yelp", null));
     }
 }

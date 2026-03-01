@@ -50,7 +50,8 @@ class AssistantServiceTest {
             assistantPlanRepository,
             pricingServicePort,
             weatherServicePort,
-            placesServicePort);
+            placesServicePort,
+            new PlaceRankingService());
 
         User user = new User();
         user.setId(1L);
@@ -70,6 +71,8 @@ class AssistantServiceTest {
             null,
             null,
             null,
+            null,
+            null,
             null);
         AssistantPlanResponse response = new AssistantPlanResponse(
             "Chicago",
@@ -83,8 +86,8 @@ class AssistantServiceTest {
             .thenReturn(List.of(new PriceQuote("amadeus", "flight", "USD", 299, "test")));
         when(weatherServicePort.getCurrentWeather("Chicago"))
             .thenReturn(new WeatherSnapshot("Chicago", "Clear", 21, false));
-        when(placesServicePort.findActivities("Chicago", "foodie"))
-            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp")));
+        when(placesServicePort.findActivities("Chicago", "foodie", null, null))
+            .thenReturn(List.of(new PlaceCandidate("Food Hall", "dining", "foodie", 30, "yelp", null)));
         when(assistantServicePort.buildPlan(any(AssistantPlanRequest.class))).thenReturn(response);
         when(assistantPlanRepository.save(any(AssistantPlan.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -120,7 +123,8 @@ class AssistantServiceTest {
             assistantPlanRepository,
             pricingServicePort,
             weatherServicePort,
-            placesServicePort);
+            placesServicePort,
+            new PlaceRankingService());
 
         User user = new User();
         user.setId(1L);
@@ -133,6 +137,8 @@ class AssistantServiceTest {
             3,
             2,
             "Plan a food-focused weekend",
+            null,
+            null,
             null,
             null,
             null,

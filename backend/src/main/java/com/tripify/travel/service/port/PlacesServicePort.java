@@ -5,5 +5,5 @@ import java.util.List;
 
 public interface PlacesServicePort {
 
-    List<PlaceCandidate> findActivities(String city, String vibe);
+    List<PlaceCandidate> findActivities(String city, String vibe, Double latitude, Double longitude);
 }

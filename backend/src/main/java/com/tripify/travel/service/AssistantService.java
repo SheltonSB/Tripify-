@@ -38,6 +38,7 @@ public class AssistantService {
     private final PricingServicePort pricingServicePort;
     private final WeatherServicePort weatherServicePort;
     private final PlacesServicePort placesServicePort;
+    private final PlaceRankingService placeRankingService;
 
     public AssistantService(
         AssistantServicePort assistantServicePort,
@@ -46,7 +47,8 @@ public class AssistantService {
         AssistantPlanRepository assistantPlanRepository,
         PricingServicePort pricingServicePort,
         WeatherServicePort weatherServicePort,
-        PlacesServicePort placesServicePort) {
+        PlacesServicePort placesServicePort,
+        PlaceRankingService placeRankingService) {
         this.assistantServicePort = assistantServicePort;
         this.userRepository = userRepository;
         this.tripRepository = tripRepository;
@@ -54,6 +56,7 @@ public class AssistantService {
         this.pricingServicePort = pricingServicePort;
         this.weatherServicePort = weatherServicePort;
         this.placesServicePort = placesServicePort;
+        this.placeRankingService = placeRankingService;
     }
 
     @Transactional
@@ -114,6 +117,12 @@ public class AssistantService {
         if (request.people() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "People must be greater than zero");
         }
+        if (request.latitude() != null && (request.latitude() < -90 || request.latitude() > 90)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude must be between -90 and 90");
+        }
+        if (request.longitude() != null && (request.longitude() < -180 || request.longitude() > 180)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Longitude must be between -180 and 180");
+        }
     }
 
     private Trip resolveTrip(AssistantPlanRequest request, User user) {
@@ -160,8 +169,16 @@ public class AssistantService {
             ? request.weather()
             : weatherServicePort.getCurrentWeather(destination);
         List<PlaceCandidate> places = request.places() == null || request.places().isEmpty()
-            ? placesServicePort.findActivities(destination, vibe)
+            ? placesServicePort.findActivities(destination, vibe, request.latitude(), request.longitude())
             : request.places();
+        List<PlaceCandidate> rankedPlaces = placeRankingService.rankPlaces(
+            request.budget(),
+            request.days(),
+            request.people(),
+            vibe,
+            priceQuotes,
+            weather,
+            places);
 
         return new AssistantPlanRequest(
             request.userId(),
@@ -172,10 +189,12 @@ public class AssistantService {
             request.people(),
             request.prompt(),
             origin,
+            request.latitude(),
+            request.longitude(),
             vibe,
             priceQuotes,
             weather,
-            places);
+            rankedPlaces);
     }
 
     private String inferVibe(String prompt) {

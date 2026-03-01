@@ -5,5 +5,6 @@ public record PlaceCandidate(
     String category,
     String vibe,
     double estimatedCost,
-    String provider) {
+    String provider,
+    Double distanceMeters) {
 }

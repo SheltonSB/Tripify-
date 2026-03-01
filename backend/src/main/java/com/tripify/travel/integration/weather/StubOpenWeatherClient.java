@@ -1,7 +1,6 @@
 package com.tripify.travel.integration.weather;
 
 import com.tripify.travel.dto.weather.WeatherSnapshot;
-import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +18,7 @@ public class StubOpenWeatherClient implements OpenWeatherClient {
 
     public StubOpenWeatherClient(
         RestClient.Builder restClientBuilder,
-        @Value("${tripify.providers.openweather.base-url:https://api.openweathermap.org}") String baseUrl,
+        @Value("${tripify.providers.openweather.base-url:https://api.weatherapi.com}") String baseUrl,
         @Value("${TRIPIFY_OPENWEATHER_API_KEY:}") String apiKey) {
         this.restClient = restClientBuilder.baseUrl(baseUrl).build();
         this.apiKey = apiKey;
@@ -32,32 +31,35 @@ public class StubOpenWeatherClient implements OpenWeatherClient {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
-                        .path("/data/2.5/weather")
+                        .path("/v1/current.json")
                         .queryParam("q", city)
-                        .queryParam("appid", apiKey)
-                        .queryParam("units", "metric")
+                        .queryParam("key", apiKey)
+                        .queryParam("aqi", "no")
                         .build())
                     .retrieve()
                     .body(Map.class);
 
                 if (response != null) {
                     @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> weather = (List<Map<String, Object>>) response.get("weather");
+                    Map<String, Object> current = (Map<String, Object>) response.get("current");
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> main = (Map<String, Object>) response.get("main");
-                    String summary = weather != null && !weather.isEmpty()
-                        ? String.valueOf(weather.get(0).getOrDefault("description", "Current conditions"))
-                        : "Current conditions";
-                    double temperature = main != null && main.get("temp") instanceof Number temp
+                    Map<String, Object> condition = current == null ? null : (Map<String, Object>) current.get("condition");
+                    String summary = condition == null
+                        ? "Current conditions"
+                        : String.valueOf(condition.getOrDefault("text", "Current conditions"));
+                    double temperature = current != null && current.get("temp_c") instanceof Number temp
                         ? temp.doubleValue()
                         : 0;
-                    boolean alertActive = summary.toLowerCase().contains("storm")
-                        || summary.toLowerCase().contains("snow")
-                        || summary.toLowerCase().contains("rain");
+                    String normalized = summary.toLowerCase();
+                    boolean alertActive = normalized.contains("storm")
+                        || normalized.contains("snow")
+                        || normalized.contains("rain")
+                        || normalized.contains("thunder")
+                        || normalized.contains("ice");
                     return new WeatherSnapshot(city, summary, temperature, alertActive);
                 }
             } catch (RuntimeException exception) {
-                logger.warn("OpenWeather lookup failed for city={}, falling back to synthetic weather", city, exception);
+                logger.warn("WeatherAPI lookup failed for city={}, falling back to synthetic weather", city, exception);
             }
         }
 

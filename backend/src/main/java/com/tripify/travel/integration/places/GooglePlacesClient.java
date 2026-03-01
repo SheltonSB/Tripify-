@@ -5,5 +5,5 @@ import java.util.List;
 
 public interface GooglePlacesClient {
 
-    List<PlaceCandidate> searchPlaces(String city, String vibe);
+    List<PlaceCandidate> searchPlaces(String city, String vibe, Double latitude, Double longitude);
 }

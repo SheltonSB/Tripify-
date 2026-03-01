@@ -16,7 +16,7 @@ public class PlacesService implements PlacesServicePort {
     }
 
     @Override
-    public List<PlaceCandidate> findActivities(String city, String vibe) {
-        return googlePlacesClient.searchPlaces(city, vibe);
+    public List<PlaceCandidate> findActivities(String city, String vibe, Double latitude, Double longitude) {
+        return googlePlacesClient.searchPlaces(city, vibe, latitude, longitude);
     }
 }
