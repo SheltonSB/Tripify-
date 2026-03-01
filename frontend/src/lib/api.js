@@ -71,3 +71,7 @@ export function getTrip(tripId) {
 export function confirmTrip(tripId, payload = {}) {
   return request(`/api/trips/confirm/${tripId}`, { method: 'POST', body: payload })
 }
+
+export function buildAssistantPlan(payload) {
+  return request('/api/assistant/plan', { method: 'POST', body: payload })
+}
