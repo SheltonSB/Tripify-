@@ -29,19 +29,21 @@ function AppShell({ title, subtitle, children }) {
             </div>
           </Link>
 
-          <nav className="main-nav">
-            <Link to="/trips/generate">Stays</Link>
-            <Link to="/assistant">Packages</Link>
-            <Link to="/health">Health</Link>
-          </nav>
+          <div className="top-right-nav">
+            <nav className="main-nav">
+              <Link to="/trips/generate">Trips</Link>
+              <Link to="/assistant">Planner</Link>
+              <Link to="/health">Status</Link>
+            </nav>
 
-          <div className="header-actions">
-            <Link className="ghost-btn" to="/signup">
-              Create account
-            </Link>
-            <Link className="solid-btn" to="/login">
-              Sign in
-            </Link>
+            <div className="header-actions">
+              <Link className="ghost-btn" to="/signup">
+                Create account
+              </Link>
+              <Link className="solid-btn" to="/login">
+                Login
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -111,6 +113,66 @@ function DestinationCard({ city, note }) {
   )
 }
 
+function MasonryBackground() {
+  const columns = [
+    ['tile-a', 'tile-b', 'tile-c', 'tile-d'],
+    ['tile-c', 'tile-a', 'tile-d', 'tile-b'],
+    ['tile-b', 'tile-d', 'tile-a', 'tile-c'],
+    ['tile-d', 'tile-c', 'tile-b', 'tile-a'],
+  ]
+
+  return (
+    <div className="masonry-bg" aria-hidden="true">
+      {columns.map((column, index) => (
+        <div className="masonry-col" key={`col-${index}`}>
+          {column.map((tile, tileIndex) => (
+            <span className={`masonry-tile ${tile}`} key={`tile-${index}-${tileIndex}`} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const presetTrips = [
+  {
+    title: 'Kyoto Temple Trails',
+    subtitle: 'Japan · 5 nights',
+    price: '$1,380',
+    blurb: 'Tea houses, lantern districts, and a calm temple loop.',
+  },
+  {
+    title: 'Lisbon Food Week',
+    subtitle: 'Portugal · 4 nights',
+    price: '$980',
+    blurb: 'Coastal viewpoints and budget-friendly tasting routes.',
+  },
+  {
+    title: 'Banff Alpine Escape',
+    subtitle: 'Canada · 6 nights',
+    price: '$1,740',
+    blurb: 'Lake hikes, glacier roads, and mountain-lodge evenings.',
+  },
+  {
+    title: 'Medellin City & Nature',
+    subtitle: 'Colombia · 5 nights',
+    price: '$890',
+    blurb: 'Cable-car city routes with day trips into green valleys.',
+  },
+  {
+    title: 'Athens + Islands Starter',
+    subtitle: 'Greece · 7 nights',
+    price: '$1,560',
+    blurb: 'Historic core, ferry hops, and sunset waterfront dinners.',
+  },
+  {
+    title: 'Marrakech Culture Sprint',
+    subtitle: 'Morocco · 4 nights',
+    price: '$1,090',
+    blurb: 'Riads, souks, and curated routes avoiding peak-hour crowds.',
+  },
+]
+
 function ResumeStayCard() {
   return (
     <article className="resume-stay-card">
@@ -158,141 +220,69 @@ function DealCard({ title, detail, image }) {
 function HomePage() {
   const navigate = useNavigate()
   const [location, setLocation] = useState('Chicago')
-  const [budget, setBudget] = useState('1500')
-  const [people, setPeople] = useState('2')
-  const [days, setDays] = useState('3')
 
   const handleSearch = (event) => {
     event.preventDefault()
-    const query = new URLSearchParams({ location, budget, people, days, userId: '1' })
+    const query = new URLSearchParams({ location, budget: '1500', people: '2', days: '3', userId: '1' })
     navigate(`/trips/generate?${query.toString()}`)
   }
 
   return (
     <AppShell
-      title="Explore, save, and book with confidence"
-      subtitle="Live frontend connected to your auth, profile, trip, assistant, and health backend routes."
+      title="Plan Better Trips With Tripify"
+      subtitle="Choose a destination, generate options, and build a practical itinerary in minutes."
     >
-      <section className="resume-panel">
-        <h2>Here&apos;s where you left off</h2>
-        <div className="resume-grid">
-          <ResumeStayCard />
-          <ContinueSearchCard />
-        </div>
-      </section>
-
-      <section className="hero-card">
-        <div className="hero-media">
-          <span>Find your perfect stay and build your trip in minutes</span>
-        </div>
-        <form className="search-module" onSubmit={handleSearch}>
-          <div className="trip-tabs">
-            <button type="button" className="tab-active">
-              Stays
+      <section className="landing-hero">
+        <MasonryBackground />
+        <div className="landing-content">
+          <p className="landing-kicker">Smart itineraries for budget-conscious travelers</p>
+          <h2>Where are you traveling next?</h2>
+          <form className="landing-search" onSubmit={handleSearch}>
+            <InputField
+              label="Destination"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Enter city or country"
+              required
+            />
+            <button type="submit" className="search-btn">
+              Find trips
             </button>
-            <button type="button">Flights</button>
-            <button type="button">Packages</button>
-          </div>
-
-          <div className="form-grid form-grid-2">
-            <InputField label="Destination" value={location} onChange={(e) => setLocation(e.target.value)} required />
-            <InputField
-              label="Budget (USD)"
-              type="number"
-              min="0"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              required
-            />
-            <InputField
-              label="Travelers"
-              type="number"
-              min="1"
-              value={people}
-              onChange={(e) => setPeople(e.target.value)}
-              required
-            />
-            <InputField label="Nights" type="number" min="1" value={days} onChange={(e) => setDays(e.target.value)} required />
-          </div>
-
-          <button type="submit" className="search-btn">
-            Search trips
-          </button>
-        </form>
+          </form>
+          <p className="support-text">Try: London, Tokyo, Vancouver, Mexico City, Lisbon</p>
+        </div>
       </section>
 
-      <section className="cards-row">
-        <article className="promo-card card-one">
-          <h3>Plan with AI Assistant</h3>
-          <p>Get a structured itinerary draft and compare your options before confirming.</p>
-          <Link to="/assistant">Open assistant</Link>
-        </article>
-        <article className="promo-card card-two">
-          <h3>Manage travel profile</h3>
-          <p>Load user profile and update dietary preferences for better recommendations.</p>
-          <div className="inline-links">
-            <Link to="/users/1">User profile</Link>
-            <Link to="/preferences/1">Preferences</Link>
-          </div>
-        </article>
-        <article className="promo-card card-three">
-          <h3>Book-ready workflow</h3>
-          <p>Generate a trip, review details, then confirm via the existing backend contract.</p>
-          <div className="inline-links">
-            <Link to="/trips/generate">Generate</Link>
-            <Link to="/trips/1">Trip detail</Link>
-          </div>
-        </article>
-      </section>
-
-      <section className="deals-section">
+      <section className="preset-trips">
         <div className="deals-head">
           <div>
-            <h2>Members save up to 40% on select stays</h2>
-            <p>Showing deals for Mar 20 - Mar 22</p>
+            <h2>Preset Vacation Ideas</h2>
+            <p>Scroll for more trip inspirations built from common student budgets.</p>
           </div>
-          <button type="button" className="ghost-btn">
-            See more deals
-          </button>
+          <Link className="ghost-btn" to="/assistant">
+            Build with AI assistant
+          </Link>
         </div>
 
-        <div className="deals-grid">
-          <DealCard
-            title="Arlo SoHo"
-            detail="VIP Access · New York"
-            image="https://images.unsplash.com/photo-1564501049412-61c2a3083791?auto=format&fit=crop&w=900&q=80"
-          />
-          <DealCard
-            title="Midtown Skyline"
-            detail="Manhattan views"
-            image="https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=900&q=80"
-          />
-          <DealCard
-            title="Modern Dining Hotel"
-            detail="City center"
-            image="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=900&q=80"
-          />
-          <DealCard
-            title="Sonesta Suites"
-            detail="Great value"
-            image="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80"
-          />
-        </div>
-      </section>
-
-      <section className="destination-strip">
-        <h2>Popular this week</h2>
-        <div className="destination-grid">
-          <DestinationCard city="Barcelona" note="Tapas, beaches, and budget stays" />
-          <DestinationCard city="Tokyo" note="Efficient travel with local food tours" />
-          <DestinationCard city="New York" note="City breaks with value itinerary packs" />
-          <DestinationCard city="Mexico City" note="Culture-heavy weekends and street food" />
+        <div className="preset-grid">
+          {presetTrips.map((trip) => (
+            <article className="preset-card" key={trip.title}>
+              <p className="preset-subtitle">{trip.subtitle}</p>
+              <h3>{trip.title}</h3>
+              <p>{trip.blurb}</p>
+              <div className="preset-footer">
+                <strong>{trip.price}</strong>
+                <Link to={`/trips/generate?location=${encodeURIComponent(trip.title.split(' ')[0])}&userId=1`}>
+                  Explore
+                </Link>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     </AppShell>
   )
 }
-
 function AuthPage({ mode }) {
   const isSignup = mode === 'signup'
   const [email, setEmail] = useState('')
@@ -702,3 +692,5 @@ function App() {
 }
 
 export default App
+
+
