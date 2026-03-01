@@ -1,7 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.chains.trip_planner_chain import TripPlannerChain
-from app.providers.llama_client import LlamaClient
+from app.providers.llama_client import LlamaClient, LlamaClientError
 from app.schemas.assistant_request import AssistantRequest
 from app.schemas.assistant_response import AssistantResponse
 from app.services.assistant_service import AssistantService
@@ -21,4 +21,7 @@ _assistant_service = AssistantService(
 
 @router.post("/plan", response_model=AssistantResponse)
 async def build_plan(request: AssistantRequest) -> AssistantResponse:
-    return _assistant_service.build_plan(request)
+    try:
+        return _assistant_service.build_plan(request)
+    except LlamaClientError as exception:
+        raise HTTPException(status_code=502, detail=str(exception)) from exception

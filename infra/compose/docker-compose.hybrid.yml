@@ -31,8 +31,14 @@ services:
     build:
       context: ../../ai-service
     container_name: tripify_ai_service
+    environment:
+      TRIPIFY_OLLAMA_BASE_URL: ${TRIPIFY_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      TRIPIFY_LLM_MODEL: ${TRIPIFY_LLM_MODEL:-llama3}
+      TRIPIFY_LLM_TIMEOUT_SECONDS: ${TRIPIFY_LLM_TIMEOUT_SECONDS:-60}
     ports:
       - "8001:8001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/health')"]
       interval: 10s
