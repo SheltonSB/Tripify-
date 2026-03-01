@@ -57,6 +57,9 @@ public class FastApiAssistantClient implements AssistantClient, AssistantService
     private Map<String, Object> toPayload(AssistantPlanRequest request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userId", request.userId());
+        if (request.tripId() != null) {
+            payload.put("tripId", request.tripId());
+        }
         payload.put("destination", request.destination());
         payload.put("budget", request.budget());
         payload.put("days", request.days());

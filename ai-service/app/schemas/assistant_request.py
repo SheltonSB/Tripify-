@@ -5,6 +5,7 @@ class AssistantRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     user_id: int | None = Field(default=None, alias="userId")
+    trip_id: int | None = Field(default=None, alias="tripId")
     destination: str
     budget: float
     days: int
