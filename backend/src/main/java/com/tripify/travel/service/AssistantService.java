@@ -85,6 +85,7 @@ public class AssistantService {
             response.summary(),
             response.steps(),
             toRecommendations(enrichedRequest.places(), enrichedRequest.vibe(), enrichedRequest.weather()),
+            enrichedRequest.priceQuotes(),
             fixedCost,
             remainingBudget);
         assistantPlanRepository.save(toEntity(enrichedResponse, user, trip));

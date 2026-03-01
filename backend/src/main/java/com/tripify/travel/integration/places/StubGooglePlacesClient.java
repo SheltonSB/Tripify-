@@ -70,13 +70,11 @@ public class StubGooglePlacesClient implements GooglePlacesClient {
                     }).toList();
                 }
             } catch (RuntimeException exception) {
-                logger.warn("Google Places lookup failed for city={}, falling back to synthetic places", city, exception);
+                logger.warn("Google Places lookup failed for city={}, returning no live places", city, exception);
             }
         }
 
-        return List.of(
-            new PlaceCandidate(city + " Riverwalk", "sightseeing", vibe, 0, "google-places", null),
-            new PlaceCandidate(city + " Food Hall", "dining", vibe, 28, "google-places", null));
+        return List.of();
     }
 
     private String buildQuery(String city, String vibe) {

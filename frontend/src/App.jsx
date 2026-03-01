@@ -6,7 +6,10 @@ import {
   generateTrip,
   getAssistantPlansByTrip,
   getAssistantPlansByUser,
+  getDestinationPhotos,
   getHealth,
+  getLiveEvents,
+  getLiveRecommendations,
   getTrip,
   getUser,
   login,
@@ -158,6 +161,80 @@ function ApiResult({ status, data, error }) {
   )
 }
 
+function TravelQuoteList({ quotes }) {
+  if (!Array.isArray(quotes) || !quotes.length) {
+    return null
+  }
+
+  return (
+    <div className="spotlight-grid">
+      {quotes.map((quote, index) => (
+        <article className="spotlight-card" key={`${quote.provider}-${quote.category}-${quote.label}-${index}`}>
+          <p className="spotlight-day">{quote.category}</p>
+          <h3>{quote.label || 'Live quote'}</h3>
+          <p>
+            <strong>
+              {quote.currency || 'USD'} {Number(quote.amount || 0).toFixed(0)}
+            </strong>
+          </p>
+          <p>Source: {quote.provider}</p>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function TripGenerationResult({ status, data, error }) {
+  if (status === 'error') {
+    return <ApiResult status={status} data={data} error={error} />
+  }
+
+  if (status === 'loading') {
+    return (
+      <section className="result-card">
+        <div className="result-head">
+          <span className="status-pill status-loading">loading</span>
+        </div>
+        <p>Generating your trip shell...</p>
+      </section>
+    )
+  }
+
+  if (status !== 'success' || !data) {
+    return (
+      <section className="result-card">
+        <div className="result-head">
+          <span className="status-pill status-idle">idle</span>
+        </div>
+        <p>Generate a trip to create the trip record that the live planner will use.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="result-card">
+      <div className="result-head">
+        <span className="status-pill status-success">success</span>
+      </div>
+      <h3>{data.location}</h3>
+      <p>Trip ID: {data.id}</p>
+      <p>Budget: ${Number(data.budget || 0).toFixed(0)}</p>
+      <p>
+        {data.days} nights • {data.people} traveler{data.people === 1 ? '' : 's'}
+      </p>
+      <p>{data.confirmed ? 'Confirmed' : 'Ready for planning'}</p>
+      <div className="actions-row">
+        <Link className="ghost-btn" to={`/assistant`}>
+          Open AI planner
+        </Link>
+        <Link className="ghost-btn" to={`/trips/${data.id}`}>
+          View trip detail
+        </Link>
+      </div>
+    </section>
+  )
+}
+
 function FormField({ label, children }) {
   return (
     <label>
@@ -239,80 +316,6 @@ function MasonryBackground({ columnsCount = 4, className = '' }) {
   )
 }
 
-const presetTrips = [
-  {
-    slug: 'kyoto-temple-trails',
-    title: 'Kyoto Temple Trails',
-    subtitle: 'Japan - 5 nights',
-    price: '$1,380',
-    baseBudget: 1380,
-    days: 5,
-    location: 'Kyoto',
-    image:
-      'https://images.unsplash.com/photo-1526481280695-3c4691f2f038?auto=format&fit=crop&w=1400&q=80',
-    blurb: 'Tea houses, lantern districts, and a calm temple loop.',
-  },
-  {
-    slug: 'lisbon-food-week',
-    title: 'Lisbon Food Week',
-    subtitle: 'Portugal - 4 nights',
-    price: '$980',
-    baseBudget: 980,
-    days: 4,
-    location: 'Lisbon',
-    image:
-      'https://images.unsplash.com/photo-1513735492246-483525079686?auto=format&fit=crop&w=1400&q=80',
-    blurb: 'Coastal viewpoints and budget-friendly tasting routes.',
-  },
-  {
-    slug: 'banff-alpine-escape',
-    title: 'Banff Alpine Escape',
-    subtitle: 'Canada - 6 nights',
-    price: '$1,740',
-    baseBudget: 1740,
-    days: 6,
-    location: 'Banff',
-    image:
-      'https://images.unsplash.com/photo-1601758123927-196ac4f7d7d3?auto=format&fit=crop&w=1400&q=80',
-    blurb: 'Lake hikes, glacier roads, and mountain-lodge evenings.',
-  },
-  {
-    slug: 'medellin-city-nature',
-    title: 'Medellin City & Nature',
-    subtitle: 'Colombia - 5 nights',
-    price: '$890',
-    baseBudget: 890,
-    days: 5,
-    location: 'Medellin',
-    image:
-      'https://images.unsplash.com/photo-1541427468627-a89a96e5ca1d?auto=format&fit=crop&w=1400&q=80',
-    blurb: 'Cable-car city routes with day trips into green valleys.',
-  },
-  {
-    slug: 'athens-islands-starter',
-    title: 'Athens + Islands Starter',
-    subtitle: 'Greece - 7 nights',
-    price: '$1,560',
-    baseBudget: 1560,
-    days: 7,
-    location: 'Athens',
-    image:
-      'https://images.unsplash.com/photo-1555993539-1732b0258235?auto=format&fit=crop&w=1400&q=80',
-    blurb: 'Historic core, ferry hops, and sunset waterfront dinners.',
-  },
-  {
-    slug: 'marrakech-culture-sprint',
-    title: 'Marrakech Culture Sprint',
-    subtitle: 'Morocco - 4 nights',
-    price: '$1,090',
-    baseBudget: 1090,
-    days: 4,
-    location: 'Marrakech',
-    image:
-      'https://images.unsplash.com/photo-1597212618440-806262de4f6b?auto=format&fit=crop&w=1400&q=80',
-    blurb: 'Riads, souks, and curated routes avoiding peak-hour crowds.',
-  },
-]
 function ResumeStayCard() {
   return (
     <article className="resume-stay-card">
@@ -358,15 +361,154 @@ function DealCard({ title, detail, image }) {
 }
 
 function HomePage() {
+  const { currentUser } = useAuth()
   const navigate = useNavigate()
-  const [location, setLocation] = useState('Chicago')
+  const [searchLocation, setSearchLocation] = useState('Chicago')
+  const [activeDestination, setActiveDestination] = useState('Chicago')
   const [budget] = useState('1500')
   const [people] = useState('2')
   const [days] = useState('3')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [locationError, setLocationError] = useState('')
+  const [dietaryPreference, setDietaryPreference] = useState('Vegan')
+  const [personalityType, setPersonalityType] = useState('Ambivert')
+  const [tripCategory, setTripCategory] = useState('Friends')
+  const profileAction = useApiAction((userId) => getUser(userId))
+  const preferencesAction = useApiAction((payload) => updatePreferences(currentUser.id, payload))
+  const photosAction = useApiAction((destination) => getDestinationPhotos(destination))
+  const eventsAction = useApiAction((destination) => getLiveEvents(destination))
+  const recommendationsAction = useApiAction((destination, latitudeOverride, longitudeOverride) =>
+    getLiveRecommendations({
+      destination,
+      budget: Number(budget),
+      days: Number(days),
+      people: Number(people),
+      userId: currentUser?.id ?? '',
+      latitude: latitudeOverride ?? latitude,
+      longitude: longitudeOverride ?? longitude,
+    }),
+  )
+
+  const refreshDiscovery = (destination = activeDestination, latitudeOverride = latitude, longitudeOverride = longitude) => {
+    const resolvedDestination = (destination || '').trim()
+    if (!resolvedDestination) {
+      return
+    }
+
+    setActiveDestination(resolvedDestination)
+    recommendationsAction.run(resolvedDestination, latitudeOverride, longitudeOverride)
+    photosAction.run(resolvedDestination)
+    eventsAction.run(resolvedDestination)
+  }
+
+  const jumpToSection = (sectionId) => {
+    const section = document.getElementById(sectionId)
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const buildAppleMapsUrl = (placeName) => {
+    const query = [placeName, activeDestination].filter(Boolean).join(', ')
+    return `https://maps.apple.com/?q=${encodeURIComponent(query)}`
+  }
+
+  const useCurrentArea = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported in this browser.')
+      return
+    }
+
+    setLocationError('')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextLatitude = position.coords.latitude.toFixed(6)
+        const nextLongitude = position.coords.longitude.toFixed(6)
+        setLatitude(nextLatitude)
+        setLongitude(nextLongitude)
+        refreshDiscovery(activeDestination, nextLatitude, nextLongitude)
+      },
+      (error) => {
+        setLocationError(error.message || 'Could not read current location.')
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
+
+  const profileNeedsSetup = (profile) =>
+    !profile
+    || !profile.dietaryPreference
+    || !profile.personalityType
+    || !profile.tripCategory
+    || profile.dietaryPreference === 'Not specified'
+    || profile.personalityType === 'Not specified'
+    || profile.tripCategory === 'Not specified'
+
+  const needsPreferenceSetup = Boolean(currentUser?.id) && (profileAction.status !== 'success' || profileNeedsSetup(profileAction.data))
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      profileAction.run(currentUser.id)
+      return
+    }
+    refreshDiscovery('Chicago')
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    const profile = profileAction.data
+    if (!profile) {
+      return
+    }
+
+    setDietaryPreference(profile.dietaryPreference || profile.foodPreferences || 'Vegan')
+    setPersonalityType(profile.personalityType || 'Ambivert')
+    setTripCategory(profile.tripCategory || 'Friends')
+
+    if (!profileNeedsSetup(profile)) {
+      refreshDiscovery(activeDestination)
+    }
+  }, [profileAction.data])
 
   const handleSearch = (event) => {
     event.preventDefault()
-    const query = new URLSearchParams({ location, budget, people, days, userId: '1' })
+    if (needsPreferenceSetup) {
+      const nextDestination = (searchLocation || '').trim()
+      if (nextDestination) {
+        setActiveDestination(nextDestination)
+      }
+      return
+    }
+    refreshDiscovery(searchLocation)
+  }
+
+  const savePreferenceGate = async (event) => {
+    event.preventDefault()
+    const response = await preferencesAction.run({
+      foodPreferences: dietaryPreference,
+      allergies: profileAction.data?.allergies || 'None',
+      dietaryPreference,
+      personalityType,
+      tripCategory,
+      lactoseIntolerant: profileAction.data?.lactoseIntolerant ?? false,
+      drinksAlcohol: profileAction.data?.drinksAlcohol ?? false,
+      smokes: profileAction.data?.smokes ?? false,
+    })
+
+    if (response?.id) {
+      await profileAction.run(response.id)
+      refreshDiscovery(activeDestination)
+    }
+  }
+
+  const openTripPlanner = () => {
+    const query = new URLSearchParams({
+      location: activeDestination,
+      budget,
+      people,
+      days,
+      userId: String(currentUser?.id || 1),
+    })
     navigate(`/trips/generate?${query.toString()}`)
   }
 
@@ -383,46 +525,261 @@ function HomePage() {
           <form className="landing-search" onSubmit={handleSearch}>
             <InputField
               label="Destination"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              value={searchLocation}
+              onChange={(e) => setSearchLocation(e.target.value)}
               placeholder="Enter city or country"
               required
             />
             <button type="submit" className="search-btn">
-              Find trips
+              Show live results
             </button>
           </form>
-          <p className="support-text">Try: London, Tokyo, Vancouver, Mexico City, Lisbon</p>
+          <div className="actions-row">
+            <p className="support-text">Try: London, Tokyo, Vancouver, Mexico City, Lisbon</p>
+            <button type="button" className="ghost-btn" onClick={openTripPlanner}>
+              Open trip planner
+            </button>
+          </div>
         </div>
       </section>
 
-      <section className="preset-trips">
+      {currentUser?.id && needsPreferenceSetup ? (
+        <section className="two-col">
+          <form className="form-card" onSubmit={savePreferenceGate}>
+            <h2>Tell us your travel style first</h2>
+            <p className="support-text">
+              Tripify uses your preferences before it ranks live activities, so your recommendations match what you actually like.
+            </p>
+            <div className="field">
+              <label htmlFor="home-dietary">Dietary preference</label>
+              <select id="home-dietary" value={dietaryPreference} onChange={(e) => setDietaryPreference(e.target.value)}>
+                <option value="Vegan">Vegan</option>
+                <option value="Vegetarian">Vegetarian</option>
+                <option value="No restrictions">No restrictions</option>
+                <option value="Lactose Intolerant">Lactose Intolerant</option>
+                <option value="MeatLover">MeatLover</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="home-personality">Personality</label>
+              <select id="home-personality" value={personalityType} onChange={(e) => setPersonalityType(e.target.value)}>
+                <option value="Extrovert">Extrovert</option>
+                <option value="Ambivert">Ambivert</option>
+                <option value="Introvert">Introvert</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="home-trip-category">Trip category</label>
+              <select id="home-trip-category" value={tripCategory} onChange={(e) => setTripCategory(e.target.value)}>
+                <option value="Romantic">Romantic</option>
+                <option value="Family">Family</option>
+                <option value="Friends">Friends</option>
+                <option value="Solo">Solo</option>
+              </select>
+            </div>
+            <SubmitButton
+              status={preferencesAction.status}
+              loadingText="Saving preferences..."
+              idleText="Save preferences and personalize"
+            />
+          </form>
+          <div className="form-card">
+            <h2>Why this matters</h2>
+            <p className="support-text">
+              Travelers should not all get the same activity list. Once you save this, Tripify will bias the live ranking to your
+              travel style before it shows you places to go.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="preset-trips" id="home-nearby-places">
         <div className="deals-head">
           <div>
-            <h2>Preset Vacation Ideas</h2>
-            <p>Scroll for more trip inspirations built from common student budgets.</p>
+            <h2>{activeDestination} Live Activities Nearby (Estimated Spend)</h2>
+            <p>Live activities are ranked in real time from Google Places, live pricing, weather, and your budget.</p>
           </div>
-          <Link className="ghost-btn" to="/assistant">
-            Build with AI assistant
-          </Link>
+          <div className="actions-row">
+            <button type="button" className="ghost-btn" onClick={() => refreshDiscovery(activeDestination)}>
+              Refresh live data
+            </button>
+            <button type="button" className="ghost-btn" onClick={useCurrentArea}>
+              Use my area for nearest places
+            </button>
+            <Link className="ghost-btn" to="/assistant">
+              Build with AI assistant
+            </Link>
+          </div>
+        </div>
+        {locationError ? <p className="support-text">{locationError}</p> : null}
+        {latitude && longitude ? (
+          <p className="support-text">
+            Ranking nearby places from your current area ({latitude}, {longitude}).
+          </p>
+        ) : (
+          <p className="support-text">Use your area to unlock closest-place distance ranking.</p>
+        )}
+
+        {photosAction.status === 'success' && Array.isArray(photosAction.data?.photoUrls) && photosAction.data.photoUrls.length ? (
+          <div className="preset-grid" style={{ marginBottom: '1rem' }}>
+            {photosAction.data.photoUrls.slice(0, 4).map((url, index) => (
+              <article
+                className="preset-card magic-bento"
+                key={`${url}-${index}`}
+                style={{ padding: '0.4rem', textAlign: 'left' }}
+              >
+                <img
+                  src={url}
+                  alt={`${activeDestination} preview ${index + 1}`}
+                  style={{ width: '100%', height: '190px', objectFit: 'cover', borderRadius: '16px' }}
+                />
+                <div style={{ padding: '0.55rem 0.35rem 0.1rem' }}>
+                  <p className="preset-subtitle">{activeDestination}</p>
+                  <strong>Explore {activeDestination}</strong>
+                  <div className="actions-row" style={{ marginTop: '0.55rem' }}>
+                    <button type="button" className="ghost-btn" onClick={() => jumpToSection('home-nearby-places')}>
+                      See live activities
+                    </button>
+                    <button type="button" className="ghost-btn" onClick={openTripPlanner}>
+                      Plan this trip
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="preset-grid">
+          {recommendationsAction.status === 'loading' ? (
+            <article className="preset-card magic-bento">
+              <div className="magic-bento-glow" aria-hidden="true" />
+              <p className="preset-subtitle">{activeDestination}</p>
+              <h3>Loading live activities...</h3>
+              <p>Ranking nearby activities against your budget and current live provider data.</p>
+            </article>
+          ) : recommendationsAction.status === 'success' && recommendationsAction.data?.places?.length ? (
+            recommendationsAction.data.places.map((place) => (
+              <article className="preset-card magic-bento" key={`${place.name}-${place.provider}`}>
+                <div className="magic-bento-glow" aria-hidden="true" />
+                <p className="preset-subtitle">{activeDestination}</p>
+                <h3>{place.name}</h3>
+                <p className="preset-subtitle">
+                  {place.category}
+                  {place.distanceMeters ? ` • ${(place.distanceMeters / 1000).toFixed(1)} km away` : ''}
+                </p>
+                <p>{place.note}</p>
+                <p className="support-text" style={{ margin: 0 }}>
+                  Live place data from {place.provider}. Spend shown here is an estimate based on provider metadata.
+                </p>
+                <div className="preset-footer">
+                  <strong>~${Number(place.estimatedCost || 0).toFixed(0)}</strong>
+                  <div className="actions-row">
+                    <a href={buildAppleMapsUrl(place.name)} target="_blank" rel="noreferrer">
+                      Open in Maps
+                    </a>
+                    <Link
+                      to={`/trips/generate?location=${encodeURIComponent(activeDestination)}&budget=${budget}&days=${days}&people=${people}&userId=${encodeURIComponent(String(currentUser?.id || 1))}`}
+                    >
+                      Plan around this
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))
+          ) : (
+            <article className="preset-card magic-bento">
+              <div className="magic-bento-glow" aria-hidden="true" />
+              <p className="preset-subtitle">{activeDestination}</p>
+              <h3>No live activities yet</h3>
+              <p>
+                Check your provider keys, then refresh. This section only shows provider-backed activities.
+              </p>
+            </article>
+          )}
+        </div>
+        {recommendationsAction.status === 'success' && recommendationsAction.data ? (
+          <>
+            <p className="support-text">
+              {Array.isArray(recommendationsAction.data.priceQuotes) && recommendationsAction.data.priceQuotes.length
+              ? `Live travel + hotel cost: $${Number(recommendationsAction.data.fixedCost || 0).toFixed(0)}. Remaining budget: $${Number(recommendationsAction.data.remainingBudget || 0).toFixed(0)}.`
+              : 'Live travel + hotel pricing is still loading or unavailable for this destination right now.'}
+              {recommendationsAction.data.weather?.summary
+                ? ` Current weather: ${recommendationsAction.data.weather.summary}.`
+                : ''}
+              {' '}Nearby activity prices are estimated spend from live provider metadata, not hardcoded values.
+            </p>
+            {Array.isArray(recommendationsAction.data.priceQuotes) && recommendationsAction.data.priceQuotes.length ? (
+              <>
+                <h2>Live Travel Pricing</h2>
+                <TravelQuoteList quotes={recommendationsAction.data.priceQuotes} />
+              </>
+            ) : null}
+          </>
+        ) : null}
+        {recommendationsAction.status === 'error' ? (
+          <p className="support-text">{recommendationsAction.error}</p>
+        ) : null}
+      </section>
+
+      <section className="preset-trips" id="home-live-events">
+        <div className="deals-head">
+          <div>
+            <h2>{activeDestination} Live Ticketed Events</h2>
+            <p>Ticketmaster events are shown separately because these can have real live ticket pricing.</p>
+          </div>
+          <div className="actions-row">
+            <button type="button" className="ghost-btn" onClick={() => jumpToSection('home-nearby-places')}>
+              Back to nearby places
+            </button>
+          </div>
         </div>
 
         <div className="preset-grid">
-          {presetTrips.map((trip) => (
-            <article className="preset-card magic-bento" key={trip.title}>
+          {eventsAction.status === 'loading' ? (
+            <article className="preset-card magic-bento">
               <div className="magic-bento-glow" aria-hidden="true" />
-              <p className="preset-subtitle">{trip.subtitle}</p>
-              <h3>{trip.title}</h3>
-              <p>{trip.blurb}</p>
-              <div className="preset-footer">
-                <strong>{trip.price}</strong>
-                <Link to={`/journeys/${trip.slug}`}>
-                  Explore
-                </Link>
-              </div>
+              <p className="preset-subtitle">{activeDestination}</p>
+              <h3>Loading live events...</h3>
+              <p>Checking Ticketmaster for ticketed events near this destination.</p>
             </article>
-          ))}
+          ) : eventsAction.status === 'success' && Array.isArray(eventsAction.data) && eventsAction.data.length ? (
+            eventsAction.data.map((eventItem) => (
+              <article className="preset-card magic-bento" key={eventItem.id || eventItem.name}>
+                {eventItem.imageUrl ? (
+                  <img
+                    src={eventItem.imageUrl}
+                    alt={eventItem.name}
+                    style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: '16px', marginBottom: '0.75rem' }}
+                  />
+                ) : null}
+                <p className="preset-subtitle">{eventItem.venueName || eventItem.city || activeDestination}</p>
+                <h3>{eventItem.name}</h3>
+                <p>{eventItem.startDateTime || 'Date TBD'}</p>
+                <div className="preset-footer">
+                  <strong>
+                    {eventItem.minPrice ? `From ${eventItem.minPrice} ${eventItem.currency || ''}` : 'Price TBD'}
+                  </strong>
+                  {eventItem.ticketUrl ? (
+                    <a href={eventItem.ticketUrl} target="_blank" rel="noreferrer">
+                      Tickets
+                    </a>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+              </article>
+            ))
+          ) : (
+            <article className="preset-card magic-bento">
+              <div className="magic-bento-glow" aria-hidden="true" />
+              <p className="preset-subtitle">{activeDestination}</p>
+              <h3>No live ticketed events</h3>
+              <p>Either no Ticketmaster events were found or the Ticketmaster API is not configured yet.</p>
+            </article>
+          )}
         </div>
+        {eventsAction.status === 'error' ? <p className="support-text">{eventsAction.error}</p> : null}
       </section>
     </AppShell>
   )
@@ -473,7 +830,39 @@ function AssistantStepList({ steps }) {
 
 function JourneyOptionsPage() {
   const { journeySlug } = useParams()
-  const trip = useMemo(() => presetTrips.find((item) => item.slug === journeySlug), [journeySlug])
+  const presetJourneys = [
+    {
+      slug: 'kyoto-temple-trails',
+      title: 'Kyoto Temple Trails',
+      subtitle: 'Japan - 5 nights',
+      baseBudget: 1380,
+      days: 5,
+      location: 'Kyoto',
+      image:
+        'https://images.unsplash.com/photo-1526481280695-3c4691f2f038?auto=format&fit=crop&w=1400&q=80',
+    },
+    {
+      slug: 'lisbon-food-week',
+      title: 'Lisbon Food Week',
+      subtitle: 'Portugal - 4 nights',
+      baseBudget: 980,
+      days: 4,
+      location: 'Lisbon',
+      image:
+        'https://images.unsplash.com/photo-1513735492246-483525079686?auto=format&fit=crop&w=1400&q=80',
+    },
+    {
+      slug: 'banff-alpine-escape',
+      title: 'Banff Alpine Escape',
+      subtitle: 'Canada - 6 nights',
+      baseBudget: 1740,
+      days: 6,
+      location: 'Banff',
+      image:
+        'https://images.unsplash.com/photo-1601758123927-196ac4f7d7d3?auto=format&fit=crop&w=1400&q=80',
+    },
+  ]
+  const trip = useMemo(() => presetJourneys.find((item) => item.slug === journeySlug), [journeySlug])
   const [activeOption, setActiveOption] = useState(null)
   const tripAction = useApiAction((payload) => generateTrip(payload))
 
@@ -883,7 +1272,7 @@ function TripGeneratePage() {
           <p className="support-text">After generation, open `/trips/&#123;tripId&#125;` to fetch and confirm.</p>
         </form>
 
-        <ApiResult
+        <TripGenerationResult
           status={tripGenerateAction.status}
           data={tripGenerateAction.data}
           error={tripGenerateAction.error}
@@ -941,6 +1330,8 @@ function AssistantPage() {
   }))
   const [locationError, setLocationError] = useState('')
   const assistantAction = useApiAction((payload) => buildAssistantPlan(payload))
+  const photoAction = useApiAction(() => getDestinationPhotos(intent.destination))
+  const eventsAction = useApiAction(() => getLiveEvents(intent.destination))
   const [historyStatus, setHistoryStatus] = useState('idle')
   const [historyData, setHistoryData] = useState(null)
   const [historyError, setHistoryError] = useState('')
@@ -1283,6 +1674,68 @@ function AssistantPage() {
         )}
 
         <section className="form-card">
+          <p className="support-text">Pull live destination photos and current events for this destination.</p>
+          <div className="actions-row">
+            <button type="button" onClick={() => photoAction.run()} disabled={photoAction.status === 'loading'}>
+              {photoAction.status === 'loading' ? 'Loading photos...' : 'Load destination photos'}
+            </button>
+            <button type="button" onClick={() => eventsAction.run()} disabled={eventsAction.status === 'loading'}>
+              {eventsAction.status === 'loading' ? 'Loading events...' : 'Load live events'}
+            </button>
+          </div>
+          {photoAction.status === 'success' && Array.isArray(photoAction.data?.photoUrls) && photoAction.data.photoUrls.length ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+              {photoAction.data.photoUrls.map((url, index) => (
+                <img
+                  key={`${url}-${index}`}
+                  src={url}
+                  alt={`${intent.destination} preview ${index + 1}`}
+                  style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '14px' }}
+                />
+              ))}
+            </div>
+          ) : null}
+          {photoAction.status === 'error' ? <ApiResult status={photoAction.status} data={photoAction.data} error={photoAction.error} /> : null}
+          {eventsAction.status === 'success' && Array.isArray(eventsAction.data) ? (
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              {eventsAction.data.length ? (
+                eventsAction.data.map((eventItem) => (
+                  <article
+                    key={eventItem.id || eventItem.name}
+                    style={{
+                      border: '1px solid rgba(15, 23, 42, 0.12)',
+                      borderRadius: '16px',
+                      padding: '0.9rem',
+                      display: 'grid',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <strong>{eventItem.name}</strong>
+                    <span>{eventItem.venueName || eventItem.city}</span>
+                    <span>{eventItem.startDateTime || 'Date TBD'}</span>
+                    {eventItem.minPrice ? (
+                      <span>
+                        From {eventItem.minPrice} {eventItem.currency || ''}
+                      </span>
+                    ) : (
+                      <span>Price not published</span>
+                    )}
+                    {eventItem.ticketUrl ? (
+                      <a href={eventItem.ticketUrl} target="_blank" rel="noreferrer">
+                        View tickets
+                      </a>
+                    ) : null}
+                  </article>
+                ))
+              ) : (
+                <p className="support-text">No live events returned for this destination.</p>
+              )}
+            </div>
+          ) : null}
+          {eventsAction.status === 'error' ? <ApiResult status={eventsAction.status} data={eventsAction.data} error={eventsAction.error} /> : null}
+        </section>
+
+        <section className="form-card">
           <p className="support-text">Load the assistant plans already saved for this trip or user.</p>
           <div className="actions-row">
             <button type="button" onClick={loadSavedByTrip} disabled={historyStatus === 'loading'}>
@@ -1304,6 +1757,7 @@ function TravelPlanReadyPage() {
   const navigate = useNavigate()
   const plan = location.state?.plan
   const recommendations = Array.isArray(plan?.recommendations) ? plan.recommendations : []
+  const priceQuotes = Array.isArray(plan?.priceQuotes) ? plan.priceQuotes : []
   const fixedCost = typeof plan?.fixedCost === 'number' ? plan.fixedCost : null
   const remainingBudget = typeof plan?.remainingBudget === 'number' ? plan.remainingBudget : null
 
@@ -1346,6 +1800,13 @@ function TravelPlanReadyPage() {
           </article>
         </div>
 
+        {priceQuotes.length ? (
+          <>
+            <h2>Live Flight and Hotel Prices</h2>
+            <TravelQuoteList quotes={priceQuotes} />
+          </>
+        ) : null}
+
         {recommendations.length ? (
           <>
             <h2>Top Recommendations Near You</h2>
@@ -1358,7 +1819,10 @@ function TravelPlanReadyPage() {
                     Cost: <strong>${Number(item.estimatedCost || 0).toFixed(0)}</strong>
                   </p>
                   <p>
-                    Distance: <strong>{item.distanceMeters == null ? 'Unknown' : `${Math.round(item.distanceMeters)}m`}</strong>
+                    Distance:{' '}
+                    <strong>
+                      {item.distanceMeters == null ? 'Use your area to calculate distance' : `${Math.round(item.distanceMeters)}m`}
+                    </strong>
                   </p>
                   <p>{item.reason}</p>
                 </article>
@@ -1437,5 +1901,3 @@ function App() {
 }
 
 export default App
-
-

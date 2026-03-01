@@ -33,9 +33,6 @@ public class StubAmadeusClient implements AmadeusClient {
 
     @Override
     public List<PriceQuote> searchTravelCosts(String origin, String destination, int travelers) {
-        double fallbackFlightAmount = 175 + (travelers * 94);
-        double fallbackHotelAmount = 145 + (travelers * 28);
-
         if (!clientId.isBlank() && !clientSecret.isBlank()) {
             try {
                 String token = fetchAccessToken();
@@ -49,21 +46,19 @@ public class StubAmadeusClient implements AmadeusClient {
                     : null;
 
                 List<PriceQuote> liveQuotes = new ArrayList<>();
-                liveQuotes.add(flightQuote != null
-                    ? flightQuote
-                    : new PriceQuote("amadeus", "flight", "USD", fallbackFlightAmount, origin + "-" + destination + "-economy"));
-                liveQuotes.add(hotelQuote != null
-                    ? hotelQuote
-                    : new PriceQuote("amadeus", "hotel", "USD", fallbackHotelAmount, destination + "-standard"));
+                if (flightQuote != null) {
+                    liveQuotes.add(flightQuote);
+                }
+                if (hotelQuote != null) {
+                    liveQuotes.add(hotelQuote);
+                }
                 return liveQuotes;
             } catch (RuntimeException exception) {
-                logger.warn("Amadeus pricing lookup failed origin={} destination={}, falling back to synthetic quote", origin, destination, exception);
+                logger.warn("Amadeus pricing lookup failed origin={} destination={}, returning no live pricing", origin, destination, exception);
             }
         }
 
-        return List.of(
-            new PriceQuote("amadeus", "flight", "USD", fallbackFlightAmount, origin + "-" + destination + "-economy"),
-            new PriceQuote("amadeus", "hotel", "USD", fallbackHotelAmount, destination + "-standard"));
+        return List.of();
     }
 
     private String fetchAccessToken() {

@@ -59,14 +59,10 @@ public class StubOpenWeatherClient implements OpenWeatherClient {
                     return new WeatherSnapshot(city, summary, temperature, alertActive);
                 }
             } catch (RuntimeException exception) {
-                logger.warn("WeatherAPI lookup failed for city={}, falling back to synthetic weather", city, exception);
+                logger.warn("WeatherAPI lookup failed for city={}, returning no live weather", city, exception);
             }
         }
 
-        int hash = Math.abs(city.toLowerCase().hashCode());
-        double temperature = 10 + (hash % 18);
-        boolean alertActive = hash % 5 == 0;
-        String summary = alertActive ? "Wind advisory in effect" : "Mild conditions with light clouds";
-        return new WeatherSnapshot(city, summary, temperature, alertActive);
+        return null;
     }
 }

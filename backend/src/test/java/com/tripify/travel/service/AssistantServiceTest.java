@@ -77,6 +77,7 @@ class AssistantServiceTest {
             List.of(new AssistantStep("Explore", "Try local restaurants.", 1)),
             null,
             null,
+            null,
             null);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
@@ -175,6 +176,7 @@ class AssistantServiceTest {
             "Chicago",
             "Foodie weekend",
             List.of(new AssistantStep("Explore", "Try local restaurants.", 1)),
+            null,
             null,
             null,
             null);

@@ -60,12 +60,10 @@ public class StubYelpClient implements YelpClient {
                     }).toList();
                 }
             } catch (RuntimeException exception) {
-                logger.warn("Yelp lookup failed for city={}, falling back to synthetic places", city, exception);
+                logger.warn("Yelp lookup failed for city={}, returning no live places", city, exception);
             }
         }
 
-        return List.of(
-            new PlaceCandidate(city + " Jazz Bar", "nightlife", vibe, 35, "yelp", null),
-            new PlaceCandidate(city + " Rooftop Lounge", "drinks", vibe, 42, "yelp", null));
+        return List.of();
     }
 }
