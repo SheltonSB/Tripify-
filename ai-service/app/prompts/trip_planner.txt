@@ -1,0 +1,2 @@
+Build a concise, budget-aware trip plan.
+Return a clear summary and a small set of day-by-day steps.
