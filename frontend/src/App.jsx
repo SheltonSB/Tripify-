@@ -4,6 +4,8 @@ import {
   buildAssistantPlan,
   confirmTrip,
   generateTrip,
+  getAssistantPlansByTrip,
+  getAssistantPlansByUser,
   getHealth,
   getTrip,
   getUser,
@@ -300,9 +302,9 @@ function ResumeStayCard() {
         <p className="rating-line">
           <span>8.2</span> Very good (253 reviews)
         </p>
-        <button type="button" className="ghost-btn">
+        <Link className="ghost-btn" to="/trips/generate?location=Courbevoie&budget=900&people=1&days=3&userId=1">
           Choose a room
-        </button>
+        </Link>
       </div>
     </article>
   )
@@ -332,10 +334,13 @@ function DealCard({ title, detail, image }) {
 function HomePage() {
   const navigate = useNavigate()
   const [location, setLocation] = useState('Chicago')
+  const [budget] = useState('1500')
+  const [people] = useState('2')
+  const [days] = useState('3')
 
   const handleSearch = (event) => {
     event.preventDefault()
-    const query = new URLSearchParams({ location, budget: '1500', people: '2', days: '3', userId: '1' })
+    const query = new URLSearchParams({ location, budget, people, days, userId: '1' })
     navigate(`/trips/generate?${query.toString()}`)
   }
 
@@ -691,27 +696,79 @@ function TripDetailPage() {
 
 function AssistantPage() {
   const [userId, setUserId] = useState('1')
+  const [tripId, setTripId] = useState('')
   const [destination, setDestination] = useState('Chicago')
   const [budget, setBudget] = useState('1500')
   const [days, setDays] = useState('3')
   const [people, setPeople] = useState('2')
   const [prompt, setPrompt] = useState('Design a value-focused plan with food and local activities.')
   const assistantAction = useApiAction((payload) => buildAssistantPlan(payload))
+  const [historyStatus, setHistoryStatus] = useState('idle')
+  const [historyData, setHistoryData] = useState(null)
+  const [historyError, setHistoryError] = useState('')
+
+  const numericTripId = tripId.trim() ? Number(tripId) : null
 
   const submit = async (event) => {
     event.preventDefault()
-    await assistantAction.run({
+    const payload = {
       userId: Number(userId),
       destination,
       budget: Number(budget),
       days: Number(days),
       people: Number(people),
       prompt,
-    })
+    }
+
+    if (numericTripId) {
+      payload.tripId = numericTripId
+    }
+
+    await assistantAction.run(payload)
+  }
+
+  const loadSavedByTrip = async () => {
+    if (!numericTripId) {
+      setHistoryStatus('error')
+      setHistoryError('Enter a trip ID before loading saved plans by trip.')
+      setHistoryData(null)
+      return
+    }
+
+    setHistoryStatus('loading')
+    setHistoryError('')
+    setHistoryData(null)
+
+    try {
+      const response = await getAssistantPlansByTrip(numericTripId)
+      setHistoryData(response)
+      setHistoryStatus('success')
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : 'Unknown error')
+      setHistoryStatus('error')
+    }
+  }
+
+  const loadSavedByUser = async () => {
+    setHistoryStatus('loading')
+    setHistoryError('')
+    setHistoryData(null)
+
+    try {
+      const response = await getAssistantPlansByUser(Number(userId))
+      setHistoryData(response)
+      setHistoryStatus('success')
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : 'Unknown error')
+      setHistoryStatus('error')
+    }
   }
 
   return (
-    <AppShell title="AI itinerary assistant" subtitle="POST /api/assistant/plan">
+    <AppShell
+      title="AI itinerary assistant"
+      subtitle="POST /api/assistant/plan plus GET /api/assistant/trips/{tripId} and /api/assistant/users/{userId}"
+    >
       <section className="two-col">
         <form className="form-card" onSubmit={submit}>
           <div className="form-grid form-grid-2">
@@ -722,6 +779,13 @@ function AssistantPage() {
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
               required
+            />
+            <InputField
+              label="Trip ID (optional)"
+              type="number"
+              min="1"
+              value={tripId}
+              onChange={(e) => setTripId(e.target.value)}
             />
             <InputField
               label="Destination"
@@ -747,6 +811,10 @@ function AssistantPage() {
               required
             />
           </div>
+          <p className="support-text">
+            The destination you enter here drives the AI recommendation. Use a trip ID only to save the plan against an
+            existing trip.
+          </p>
           <label>
             Prompt
             <textarea rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} required />
@@ -754,7 +822,21 @@ function AssistantPage() {
           <SubmitButton status={assistantAction.status} loadingText="Building..." idleText="Build plan" />
         </form>
 
-        <ApiResult status={assistantAction.status} data={assistantAction.data} error={assistantAction.error} />
+        <div className="form-grid">
+          <ApiResult status={assistantAction.status} data={assistantAction.data} error={assistantAction.error} />
+          <section className="form-card">
+            <p className="support-text">Load the assistant plans already saved for this trip or user.</p>
+            <div className="actions-row">
+              <button type="button" onClick={loadSavedByTrip} disabled={historyStatus === 'loading'}>
+                {historyStatus === 'loading' ? 'Loading...' : 'Load saved by trip'}
+              </button>
+              <button type="button" onClick={loadSavedByUser} disabled={historyStatus === 'loading'}>
+                {historyStatus === 'loading' ? 'Loading...' : 'Load saved by user'}
+              </button>
+            </div>
+            <ApiResult status={historyStatus} data={historyData} error={historyError} />
+          </section>
+        </div>
       </section>
     </AppShell>
   )

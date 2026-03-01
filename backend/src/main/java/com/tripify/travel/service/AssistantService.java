@@ -3,6 +3,7 @@ package com.tripify.travel.service;
 import com.tripify.travel.dto.assistant.AssistantPlanRequest;
 import com.tripify.travel.dto.assistant.AssistantPlanResponse;
 import com.tripify.travel.dto.assistant.AssistantStep;
+import com.tripify.travel.dto.assistant.StoredAssistantPlanResponse;
 import com.tripify.travel.dto.places.PlaceCandidate;
 import com.tripify.travel.dto.pricing.PriceQuote;
 import com.tripify.travel.dto.weather.WeatherSnapshot;
@@ -83,6 +84,20 @@ public class AssistantService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public List<StoredAssistantPlanResponse> getPlansForTrip(Long tripId) {
+        return assistantPlanRepository.findAllByTripIdOrderByCreatedAtDesc(tripId).stream()
+            .map(StoredAssistantPlanResponse::fromEntity)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<StoredAssistantPlanResponse> getPlansForUser(Long userId) {
+        return assistantPlanRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+            .map(StoredAssistantPlanResponse::fromEntity)
+            .toList();
+    }
+
     private void validateRequest(AssistantPlanRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
@@ -133,7 +148,9 @@ public class AssistantService {
     }
 
     private AssistantPlanRequest enrichRequest(AssistantPlanRequest request, Trip trip) {
-        String destination = trip.getLocation() != null ? trip.getLocation() : request.destination();
+        String destination = hasText(request.destination())
+            ? request.destination().trim()
+            : trip.getLocation();
         String origin = hasText(request.origin()) ? request.origin() : "Current location";
         String vibe = hasText(request.vibe()) ? request.vibe() : inferVibe(request.prompt());
         List<PriceQuote> priceQuotes = request.priceQuotes() == null || request.priceQuotes().isEmpty()
