@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   buildAssistantPlan,
   confirmTrip,
@@ -38,6 +38,13 @@ function useApiAction(action) {
 }
 
 function AppShell({ title, subtitle, children }) {
+  const location = useLocation()
+  const navItems = [
+    { to: '/trips/generate', label: 'Trips' },
+    { to: '/assistant', label: 'Planner' },
+    { to: '/health', label: 'Status' },
+  ]
+
   return (
     <div className="app-root">
       <header className="global-top">
@@ -55,10 +62,29 @@ function AppShell({ title, subtitle, children }) {
           </Link>
 
           <div className="top-right-nav">
-            <nav className="main-nav">
-              <Link to="/trips/generate">Trips</Link>
-              <Link to="/assistant">Planner</Link>
-              <Link to="/health">Status</Link>
+            <nav className="main-nav gooey-nav">
+              <svg aria-hidden="true" width="0" height="0">
+                <defs>
+                  <filter id="goo">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+                    <feColorMatrix
+                      in="blur"
+                      mode="matrix"
+                      values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"
+                      result="goo"
+                    />
+                    <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+                  </filter>
+                </defs>
+              </svg>
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+                return (
+                  <Link key={item.to} to={item.to} className={isActive ? 'is-active' : ''}>
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
             </nav>
 
             <div className="header-actions">
@@ -140,18 +166,44 @@ function DestinationCard({ city, note }) {
 
 function MasonryBackground() {
   const columns = [
-    ['tile-a', 'tile-b', 'tile-c', 'tile-d'],
-    ['tile-c', 'tile-a', 'tile-d', 'tile-b'],
-    ['tile-b', 'tile-d', 'tile-a', 'tile-c'],
-    ['tile-d', 'tile-c', 'tile-b', 'tile-a'],
+    [
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1493558103817-58b2924bce98?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=800&q=80',
+    ],
+    [
+      'https://images.unsplash.com/photo-1483683804023-6ccdb62f86ef?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1526778548025-fa2f459cd5ce?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80',
+    ],
+    [
+      'https://images.unsplash.com/photo-1527631746610-bca00a040d60?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1493244040629-496f6d136cc3?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80',
+    ],
+    [
+      'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1549880338-65ddcdfd017b?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1521292270410-a8c4d716d518?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?auto=format&fit=crop&w=800&q=80',
+    ],
   ]
 
   return (
     <div className="masonry-bg" aria-hidden="true">
       {columns.map((column, index) => (
         <div className="masonry-col" key={`col-${index}`}>
-          {column.map((tile, tileIndex) => (
-            <span className={`masonry-tile ${tile}`} key={`tile-${index}-${tileIndex}`} />
+          {column.map((image, tileIndex) => (
+            <img
+              className={`masonry-tile tile-${(tileIndex % 4) + 1}`}
+              key={`tile-${index}-${tileIndex}`}
+              src={image}
+              alt=""
+              loading="lazy"
+            />
           ))}
         </div>
       ))}
@@ -161,43 +213,78 @@ function MasonryBackground() {
 
 const presetTrips = [
   {
+    slug: 'kyoto-temple-trails',
     title: 'Kyoto Temple Trails',
-    subtitle: 'Japan · 5 nights',
+    subtitle: 'Japan - 5 nights',
     price: '$1,380',
+    baseBudget: 1380,
+    days: 5,
+    location: 'Kyoto',
+    image:
+      'https://images.unsplash.com/photo-1526481280695-3c4691f2f038?auto=format&fit=crop&w=1400&q=80',
     blurb: 'Tea houses, lantern districts, and a calm temple loop.',
   },
   {
+    slug: 'lisbon-food-week',
     title: 'Lisbon Food Week',
-    subtitle: 'Portugal · 4 nights',
+    subtitle: 'Portugal - 4 nights',
     price: '$980',
+    baseBudget: 980,
+    days: 4,
+    location: 'Lisbon',
+    image:
+      'https://images.unsplash.com/photo-1513735492246-483525079686?auto=format&fit=crop&w=1400&q=80',
     blurb: 'Coastal viewpoints and budget-friendly tasting routes.',
   },
   {
+    slug: 'banff-alpine-escape',
     title: 'Banff Alpine Escape',
-    subtitle: 'Canada · 6 nights',
+    subtitle: 'Canada - 6 nights',
     price: '$1,740',
+    baseBudget: 1740,
+    days: 6,
+    location: 'Banff',
+    image:
+      'https://images.unsplash.com/photo-1601758123927-196ac4f7d7d3?auto=format&fit=crop&w=1400&q=80',
     blurb: 'Lake hikes, glacier roads, and mountain-lodge evenings.',
   },
   {
+    slug: 'medellin-city-nature',
     title: 'Medellin City & Nature',
-    subtitle: 'Colombia · 5 nights',
+    subtitle: 'Colombia - 5 nights',
     price: '$890',
+    baseBudget: 890,
+    days: 5,
+    location: 'Medellin',
+    image:
+      'https://images.unsplash.com/photo-1541427468627-a89a96e5ca1d?auto=format&fit=crop&w=1400&q=80',
     blurb: 'Cable-car city routes with day trips into green valleys.',
   },
   {
+    slug: 'athens-islands-starter',
     title: 'Athens + Islands Starter',
-    subtitle: 'Greece · 7 nights',
+    subtitle: 'Greece - 7 nights',
     price: '$1,560',
+    baseBudget: 1560,
+    days: 7,
+    location: 'Athens',
+    image:
+      'https://images.unsplash.com/photo-1555993539-1732b0258235?auto=format&fit=crop&w=1400&q=80',
     blurb: 'Historic core, ferry hops, and sunset waterfront dinners.',
   },
   {
+    slug: 'marrakech-culture-sprint',
     title: 'Marrakech Culture Sprint',
-    subtitle: 'Morocco · 4 nights',
+    subtitle: 'Morocco - 4 nights',
     price: '$1,090',
+    baseBudget: 1090,
+    days: 4,
+    location: 'Marrakech',
+    image:
+      'https://images.unsplash.com/photo-1597212618440-806262de4f6b?auto=format&fit=crop&w=1400&q=80',
     blurb: 'Riads, souks, and curated routes avoiding peak-hour crowds.',
   },
 ]
-
 function ResumeStayCard() {
   return (
     <article className="resume-stay-card">
@@ -291,18 +378,120 @@ function HomePage() {
 
         <div className="preset-grid">
           {presetTrips.map((trip) => (
-            <article className="preset-card" key={trip.title}>
+            <article className="preset-card magic-bento" key={trip.title}>
+              <div className="magic-bento-glow" aria-hidden="true" />
               <p className="preset-subtitle">{trip.subtitle}</p>
               <h3>{trip.title}</h3>
               <p>{trip.blurb}</p>
               <div className="preset-footer">
                 <strong>{trip.price}</strong>
-                <Link to={`/trips/generate?location=${encodeURIComponent(trip.title.split(' ')[0])}&userId=1`}>
+                <Link to={`/journeys/${trip.slug}`}>
                   Explore
                 </Link>
               </div>
             </article>
           ))}
+        </div>
+      </section>
+    </AppShell>
+  )
+}
+
+function FadeContent({ children }) {
+  return <div className="fade-content">{children}</div>
+}
+
+function AnimatedBudgetList({ options, onSelect, activeOption }) {
+  return (
+    <div className="animated-list">
+      {options.map((option, index) => (
+        <button
+          key={option.id}
+          type="button"
+          className={`animated-list-item ${activeOption === option.id ? 'active' : ''}`}
+          style={{ animationDelay: `${index * 90}ms` }}
+          onClick={() => onSelect(option)}
+        >
+          <div>
+            <strong>{option.label}</strong>
+            <p>{option.description}</p>
+          </div>
+          <span>${option.budget.toLocaleString()}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function JourneyOptionsPage() {
+  const { journeySlug } = useParams()
+  const trip = useMemo(() => presetTrips.find((item) => item.slug === journeySlug), [journeySlug])
+  const [activeOption, setActiveOption] = useState(null)
+  const tripAction = useApiAction((payload) => generateTrip(payload))
+
+  if (!trip) {
+    return <Navigate to="/" replace />
+  }
+
+  const options = [
+    {
+      id: 'budget-lite',
+      label: 'Budget Lite',
+      budget: Math.round(trip.baseBudget * 0.85),
+      description: 'More hostels and public transport, high-value attractions first.',
+    },
+    {
+      id: 'balanced',
+      label: 'Balanced',
+      budget: trip.baseBudget,
+      description: 'Comfort stays, curated attractions, and one premium experience.',
+    },
+    {
+      id: 'comfort-plus',
+      label: 'Comfort Plus',
+      budget: Math.round(trip.baseBudget * 1.2),
+      description: 'Higher comfort hotels, shorter transfers, and flexible dining.',
+    },
+  ]
+
+  const submitOption = async (option) => {
+    setActiveOption(option.id)
+    await tripAction.run({
+      userId: 1,
+      location: trip.location,
+      budget: option.budget,
+      days: trip.days,
+      people: 2,
+    })
+  }
+
+  return (
+    <AppShell
+      title={`${trip.title} Options`}
+      subtitle="Choose a budget adjustment to generate a trip option from the backend."
+    >
+      <section className="journey-layout">
+        <div className="journey-left">
+          <FadeContent>
+            <p className="landing-kicker">Journey Brief</p>
+            <h2>Welcome back, Traveler.</h2>
+            <p>
+              Your {trip.location} route is ready. We prepared three budget-adjusted variants so you can choose
+              the pace and cost that best matches your goals.
+            </p>
+            <p>
+              Select an option on the right to generate a concrete trip draft. You can then confirm it or keep
+              iterating.
+            </p>
+            <Link className="ghost-btn" to="/">
+              Back to landing
+            </Link>
+          </FadeContent>
+        </div>
+
+        <div className="journey-right" style={{ '--journey-image': `url(${trip.image})` }}>
+          <AnimatedBudgetList options={options} onSelect={submitOption} activeOption={activeOption} />
+          <ApiResult status={tripAction.status} data={tripAction.data} error={tripAction.error} />
         </div>
       </section>
     </AppShell>
@@ -597,6 +786,7 @@ function App() {
       <Route path="/trips/generate" element={<TripGeneratePage />} />
       <Route path="/trips/:tripId" element={<TripDetailPage />} />
       <Route path="/assistant" element={<AssistantPage />} />
+      <Route path="/journeys/:journeySlug" element={<JourneyOptionsPage />} />
       <Route path="/health" element={<HealthPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -604,5 +794,6 @@ function App() {
 }
 
 export default App
+
 
 
