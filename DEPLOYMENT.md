@@ -35,6 +35,12 @@ Set these on the Render blueprint or service after sync:
 - `TRIPIFY_TICKETMASTER_API_KEY`
 - `TRIPIFY_YELP_API_KEY`
 
+#### Database Connection Fix
+
+If the backend fails with `Connection refused`, it likely needs the JDBC URL format.
+Add this environment variable manually to the backend service:
+- `SPRING_DATASOURCE_URL`: Copy the "Internal Connection String" from your PostgreSQL database (tripify-postgres), but replace `postgres://` with `jdbc:postgresql://`.
+
 #### Important AI note
 
 `tripify-ai` still needs a reachable Ollama-compatible endpoint. In production, point
